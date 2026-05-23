@@ -2248,6 +2248,8 @@ function openRolHist(cierreId,key){
   _curHistCierreId=cierreId; // track which cierre is open
   const hist=loadHist();const c=hist.find(x=>x.id===cierreId);if(!c)return;
   const t=c.trabajadores.find(x=>(x.cedula||x.nombre)===key);if(!t)return;
+  // ── Enriquecer con datos actuales de INFO_ADICIONAL y LISTADO ───────────
+  _enrichFromIA(t);
   // Simular _curRolWorker desde historial
   _curRolWorker={
     cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
@@ -2309,6 +2311,33 @@ function openRolHist(cierreId,key){
   rmTab('h');rmCalc();$d('rmod').classList.add('show');
 }
 
+/* ══ _enrichFromIA: enriquece un trabajador con datos en vivo de INFO_ADICIONAL ══
+   Modifica el objeto r in-place: celular, banco, cuenta, tipo, propietario
+   Prioridad: 1) INFO_ADICIONAL  2) LISTADO  3) valor guardado original     */
+function _enrichFromIA(r){
+  if(!r||!r.cedula) return;
+  var c=normCed(r.cedula);
+  var ia=IA_MAP[c]||IA_MAP[r.cedula]||null;
+  var li=LIST_MAP[c]||LIST_MAP[r.cedula]||null;
+
+  // Celular: IA primero, luego LISTADO, luego guardado
+  if(!r.celular&&ia&&ia.celular)       r.celular=ia.celular;
+  if(!r.celular&&li&&li.celular)       r.celular=li.celular;
+
+  // Banco / cuenta: solo si IA tiene datos Y está aprobado
+  if(ia){
+    var apro=['SI','SÍ','YES','S','1','TRUE'].includes((ia.aprobacion||'').toUpperCase().trim());
+    if(apro&&ia.cuenta_banco){
+      if(!r.cuentaBanco)   r.cuentaBanco   = ia.cuenta_banco;
+      if(!r.cuenta_banco)  r.cuenta_banco  = ia.cuenta_banco;
+      if(!r.banco)         r.banco         = ia.banco||'';
+      if(!r.tipoCuenta)    r.tipoCuenta    = ia.tipo_cuenta||'';
+      if(!r.nombreProp)    r.nombreProp    = ia.nombre_prop||'';
+      if(!r.cedProp)       r.cedProp       = ia.ced_prop||'';
+    }
+  }
+}
+
 function renderHist(){
   const hist=loadHist();
   const el=$d('hist-body');
@@ -2363,6 +2392,8 @@ function renderHist(){
 
     // Worker rows (hidden by default, shown with Ver Detalle)
     const workerRows=tFilt.map(function(r){
+      // ── Enriquecer con datos en vivo de INFO_ADICIONAL y LISTADO ──────────
+      _enrichFromIA(r);
       const sk=String(r.cedula||r.nombre||'').replace(/'/g,'__q__');
       const esPag=r.estado==='pagado';
       const neto=r.neto||0;
@@ -2378,17 +2409,27 @@ function renderHist(){
       const expStr=r.desc_expreso>0?'<span style="color:var(--re)">-$'+r.desc_expreso.toFixed(2)+'<br><span style="font-size:0.62rem;color:var(--tx3)">'+(r.diasTrab||0)+'d×$'+((r.desc_expreso/(r.diasTrab||1)).toFixed(2))+'</span></span>':'<span style="color:var(--tx3)">—</span>';
       const bancStr=r.desc_bancario>0?'<span style="color:var(--re)">-$'+r.desc_bancario.toFixed(2)+'</span>':'<span style="color:var(--tx3)">—</span>';
       const sct=r.sector?sectEmoji(r.sector)+' '+r.sector:'<span style="color:var(--tx3)">—</span>';
+      // Celular con ícono si viene de INFO_ADICIONAL
+      var celDisplay=r.celular?r.celular.substring(0,10):'';
+      var celHtml=celDisplay
+        ?'<span style="color:#4ade80;font-family:var(--mo)">'+celDisplay+'</span>'
+        :'<span style="color:var(--tx3)">—</span>';
+      // Banco/cuenta: mostrar si existe en INFO_ADICIONAL
+      var cta=r.cuentaBanco||r.cuenta_banco||'';
+      var bco=r.banco||'';
+      var bancInfoHtml=cta
+        ?'<div style="font-size:0.65rem;color:var(--tl);margin-top:2px;font-family:var(--mo)">'+bco+(bco?' · ':'')+cta+'</div>'
+        :'';
       // WA + PDF action buttons
-      // PDF button: 📄 link if already in Drive, ☁ to generate
       var driveBtn=r.drive_url
         ?'<a href="'+r.drive_url+'" target="_blank" title="Ver PDF en Drive" style="display:inline-flex;align-items:center;gap:3px;font-size:0.75rem;color:#4ade80;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);border-radius:5px;padding:3px 8px;text-decoration:none;white-space:nowrap;font-weight:600">✓ PDF</a>'
         :'<button data-cid2="'+c.id+'" data-sk2="'+sk+'" onclick="crearPdfDrive(this)" title="Generar PDF y guardar en Drive" style="display:inline-flex;align-items:center;gap:3px;font-size:0.75rem;color:var(--tx3);background:rgba(255,255,255,0.05);border:1px dashed var(--brd2);border-radius:5px;padding:3px 8px;cursor:pointer;white-space:nowrap">☁ PDF</button>';
-      var waBtn='<button data-cid2="'+c.id+'" data-sk2="'+sk+'" onclick="histWA(this.dataset.cid2,this.dataset.sk2)" title="Generar PDF y enviar por WhatsApp" style="display:inline-flex;align-items:center;gap:3px;font-size:0.7rem;background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.25);border-radius:5px;padding:3px 7px;cursor:pointer;color:#25d366;white-space:nowrap">💬 WA</button>';
       return '<tr style="'+(esPag?'opacity:0.6;':'')+'border-bottom:1px solid var(--brd)">'
         +'<td style="padding:10px 8px;font-size:0.72rem;color:var(--tx2);white-space:nowrap">'+r.cedula+'</td>'
         +'<td style="padding:10px 8px"><button class="btn-link" onclick="openRolHist(\''+c.id+'\',\''+sk+'\')">'+r.nombre+'</button>'
-          +'<div style="font-size:0.65rem;color:var(--tl);margin-top:2px">'+sct+'</div></td>'
-        +'<td style="padding:10px 8px;font-size:0.72rem;color:var(--tx2)">'+((r.celular||'').substring(0,10)||'—')+'</td>'
+          +'<div style="font-size:0.65rem;color:var(--tl);margin-top:2px">'+sct+'</div>'
+          +bancInfoHtml+'</td>'
+        +'<td style="padding:10px 8px;font-size:0.72rem">'+celHtml+'</td>'
         +'<td style="padding:10px 8px;text-align:center;color:var(--tx2)">'+dias+'d</td>'
         +'<td style="padding:10px 8px;font-family:var(--mo)">'+hrs.toFixed(2)+'h</td>'
         +'<td style="padding:10px 8px;font-family:var(--mo)">'+hrsStr+'</td>'
@@ -2399,7 +2440,12 @@ function renderHist(){
         +'<td style="padding:10px 8px">'+bancStr+'</td>'
         +'<td style="padding:10px 8px;font-family:var(--mo);font-weight:700;color:var(--pu)">$'+neto.toFixed(2)+'</td>'
         +'<td><button class="bpag '+(esPag?'pagado':'pend')+'" onclick="togglePago(\''+c.id+'\',\''+sk+'\')">'+(esPag?'✓ Pagado':'● Pendiente')+'</button></td>'
-        +'<td style="padding:6px 8px">'          +'<div style="display:flex;align-items:center;gap:4px">'          +(r.drive_url            ?'<a href="'+r.drive_url+'" target="_blank" title="Ver PDF en Drive" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;font-size:0.8rem;border-radius:50%;border:1px solid rgba(34,197,94,0.3);background:rgba(34,197,94,0.1);text-decoration:none" >📄</a>'            :'<button data-cid="'+c.id+'" data-sk="'+sk+'" onclick="savePdfDriveFromHist(this.dataset.cid,this.dataset.sk,this)" title="Generar PDF → Drive" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;font-size:0.75rem;color:var(--tx3);background:none;border:1px dashed var(--brd2);border-radius:50%;cursor:pointer">☁</button>')          +'<button data-cid2="'+c.id+'" data-sk2="'+sk+'" onclick="histWA(this.dataset.cid2,this.dataset.sk2)" title="Enviar por WhatsApp" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;border:1px solid rgba(37,211,102,0.35);background:rgba(37,211,102,0.1);cursor:pointer;padding:0">'+WA_ICO+'</button>'          +'</div>'          +'</td>'
+        +'<td style="padding:6px 8px"><div style="display:flex;align-items:center;gap:4px">'
+          +(r.drive_url
+            ?'<a href="'+r.drive_url+'" target="_blank" title="Ver PDF en Drive" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;font-size:0.8rem;border-radius:50%;border:1px solid rgba(34,197,94,0.3);background:rgba(34,197,94,0.1);text-decoration:none">📄</a>'
+            :'<button data-cid="'+c.id+'" data-sk="'+sk+'" onclick="savePdfDriveFromHist(this.dataset.cid,this.dataset.sk,this)" title="Generar PDF → Drive" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;font-size:0.75rem;color:var(--tx3);background:none;border:1px dashed var(--brd2);border-radius:50%;cursor:pointer">☁</button>')
+          +'<button data-cid2="'+c.id+'" data-sk2="'+sk+'" onclick="histWA(this.dataset.cid2,this.dataset.sk2)" title="Enviar por WhatsApp" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;border:1px solid rgba(37,211,102,0.35);background:rgba(37,211,102,0.1);cursor:pointer;padding:0">'+WA_ICO+'</button>'
+          +'</div></td>'
         +'</tr>';
     }).join('');
 
@@ -2501,6 +2547,9 @@ function exportarNomina(cierreId){
     if(!c){toast('Cierre no encontrado');return;}
     var tAll=c.trabajadores||[];
     if(!tAll.length){toast('Sin trabajadores');return;}
+
+    // ── Enriquecer todos los trabajadores con datos actuales de INFO_ADICIONAL ──
+    tAll.forEach(function(t){ _enrichFromIA(t); });
 
     // Separar grupos
     var tTransf=[],tEfect=[];
@@ -2801,7 +2850,8 @@ async function histWA(cierreId, safeKey){
 }
 
 function _openWAWithData(t,c,driveUrl){
-  if(!t.celular&&IA_MAP){var _iaO=IA_MAP[normCed(t.cedula)];if(_iaO&&_iaO.celular)t.celular=_iaO.celular;}
+  // Enriquecer con datos actuales de INFO_ADICIONAL
+  _enrichFromIA(t);
   var neto=+(t.neto||0).toFixed(2);
   var bruto=+(t.bruto||t.total_tu||0).toFixed(2);
   var desc=+(t.total_desc||0).toFixed(2);
