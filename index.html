@@ -721,15 +721,18 @@ const _nt = 'palma_gye_x7k2';
 window.addEventListener('DOMContentLoaded', function(){
   // Auto-restore API URL: DEFAULT_API del archivo, o guardada en localStorage
   if(DEFAULT_API) localStorage.setItem('cj_api_url', DEFAULT_API);
-  // ── Restaurar caché local (carga instantánea) ───────────────────────
+  // ── Restaurar caché local (carga instantánea — válida 48h) ──────────────
   try{
     var _cc=JSON.parse(localStorage.getItem('cj_cache')||'null');
-    if(_cc&&_cc.ts&&(Date.now()-_cc.ts)<86400000){// válido 24h
-      if(_cc.TH&&_cc.TH.length){TH=_cc.TH;TP=_cc.TP||[];FE=_cc.FE||[];TF=_cc.TF||[];IA=_cc.IA||[];LIST=_cc.LIST||[];
-        IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
-        LIST_MAP={};LIST.forEach(function(p){if(p.cedula)LIST_MAP[normCed(p.cedula)]=p;});
-        setApiSt('ok','(caché) '+TH.length+' áreas · '+TP.length+' tallas · '+FE.length+' feriados');
-        renderTarifas();
+    if(_cc&&_cc.ts&&(Date.now()-_cc.ts)<172800000){ // 48 horas
+      if(_cc.TH&&_cc.TH.length){
+        TH=_cc.TH;TP=_cc.TP||[];FE=_cc.FE||[];TF=_cc.TF||[];IA=_cc.IA||[];LIST=_cc.LIST||[];
+        _buildMaps();
+        tarifasOk=true;
+        var _ageMin=Math.round((Date.now()-_cc.ts)/60000);
+        var _ageStr=_ageMin<60?_ageMin+'m':Math.round(_ageMin/60)+'h';
+        setApiSt('ok','(caché '+_ageStr+') '+TH.length+' áreas · '+TP.length+' tallas · '+IA.length+' adicional');
+        renderTar();
       }
     }
   }catch(e){}
@@ -997,26 +1000,27 @@ function saveModalIA(){
   var idx=IA.findIndex(function(x){return normCed(x.cedula)===c||x.cedula===cedRaw;});
   if(idx>=0){IA[idx]=obj;}else{IA.push(obj);}
   IA_MAP[c||cedRaw]=obj;
+  if(c) IA_MAP[c]=obj; // también guardar con cédula normalizada
   if(LIST_MAP[c||cedRaw]) LIST_MAP[c||cedRaw].celular=cel;
-
-  // Update cache
-  try{
-    var _cc=JSON.parse(localStorage.getItem('cj_cache')||'{}');
-    if(_cc&&_cc.IA){_cc.IA=IA;localStorage.setItem('cj_cache',JSON.stringify(_cc));}
-  }catch(e){}
+  _saveIACache();
 
   // Sync to Sheets
   var api=getAPI();
   if(api&&api.includes('script.google')){
+    toast('⏳ Guardando en Sheets...');
     fetch(api,{method:'POST',body:JSON.stringify({action:'upsert_info_adicional',
       cedula:obj.cedula,banco:banco,tipo_cuenta:tipo,cuenta_banco:ncuenta,
       celular:cel,nombre_prop:nprop,ced_prop:cprop,aprobacion:apro})})
       .then(function(r){return r.json();})
       .then(function(r){
-        toast(r.ok?'✓ Guardado en Sheets · '+obj.cedula:'✓ Local (Sheets: '+r.error+')');
-      }).catch(function(){toast('✓ Guardado localmente');});
+        if(r.ok){
+          toast('✓ Guardado en Sheets · '+obj.cedula+(r.action?(' ('+r.action+')'):''));
+        } else {
+          toast('⚠ Guardado local. Error Sheets: '+(r.error||''));
+        }
+      }).catch(function(e){toast('⚠ Guardado local. Sin conexión.');});
   }else{
-    toast('✓ Guardado localmente');
+    toast('✓ Guardado localmente (configura DEFAULT_API para sincronizar)');
   }
 
   closeModalIA();
@@ -1029,24 +1033,39 @@ function deleteIA(){
   var ced=_iaModCed;
   var c=normCed(ced);
   var nom=_getNombreFromListado(ced)||ced;
-  if(!confirm('¿Eliminar el registro de '+nom+' ('+ced+') de INFO_ADICIONAL?\n\nEsto solo elimina los datos bancarios/celular, no al trabajador del Listado.')){return;}
-  // Remove from local
+  if(!confirm('¿Eliminar el registro de '+nom+' ('+ced+') de INFO_ADICIONAL?\n\nEsto elimina los datos bancarios/celular del Sheets también.')){return;}
+  // Remove from local arrays
   IA=IA.filter(function(x){return normCed(x.cedula)!==c&&x.cedula!==ced;});
   delete IA_MAP[c]; delete IA_MAP[ced];
-  // Update cache
-  try{
-    var _cc2=JSON.parse(localStorage.getItem('cj_cache')||'{}');
-    if(_cc2&&_cc2.IA){_cc2.IA=IA;localStorage.setItem('cj_cache',JSON.stringify(_cc2));}
-  }catch(e){}
-  // Note: no delete action in codex.gs, so just local. Could add later.
+  _saveIACache();
   closeModalIA();
   renderInfoAdicional();
-  toast('✓ Eliminado localmente · '+nom);
+  // Delete from Sheets
+  var api=getAPI();
+  if(api&&api.includes('script.google')){
+    toast('⏳ Eliminando de Sheets...');
+    fetch(api,{method:'POST',body:JSON.stringify({action:'delete_info_adicional',cedula:c||ced})})
+      .then(function(r){return r.json();})
+      .then(function(r){
+        toast(r.ok?'✓ Eliminado de Sheets · '+nom:'✓ Eliminado local (Sheets: '+(r.error||'error')+')');
+      }).catch(function(){toast('✓ Eliminado local · '+nom);});
+  } else {
+    toast('✓ Eliminado localmente · '+nom);
+  }
 }
 
 // ── Compat: funciones antiguas que pueden llamarse desde otros sitios ────────
 function showAddIA(){ openModalIA(null); }
 function saveIA(){    saveModalIA();     }
+
+/* ── Guardar IA en caché localStorage ───────────────────────────────────── */
+function _saveIACache(){
+  try{
+    var _cc=JSON.parse(localStorage.getItem('cj_cache')||'{}');
+    _cc.IA=IA; _cc.ts=_cc.ts||Date.now(); // preserve timestamp
+    localStorage.setItem('cj_cache',JSON.stringify(_cc));
+  }catch(e){}
+}
 
 /* ══ CELULAR LOOKUP: desde IA y desde LISTADO ════════════════════════════ */
 function getCelularByCedula(ced){
@@ -1119,29 +1138,67 @@ function setApiSt(tipo,msg){
   el.innerHTML=(tipo==='loading'?'<div class="spin"></div>':tipo==='ok'?'<span>✓</span>':'<span>⚠</span>')+'<span>'+msg+'</span>';
 }
 function cargarTarifas(){
-  setApiSt('loading','Conectando con Google Sheet...');
   const _url=getAPI();
-  if(!_url){setApiSt('err','⚠ No hay URL del Apps Script configurada. Cierra sesión y agrégala en el login.');return;}
-  fetch(_url).then(r=>r.json()).then(data=>{
-    TH=data.tarifa_hora||[];TP=data.talla_prod||[];TF=data.tarifa_expreso||[];
-    FE=data.feriados||[];IA=data.info_adicional||[];IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});LIST=data.listado||[];LIST_MAP={};
-    // ── Guardar en caché local ──────────────────────────────────────────
-    try{localStorage.setItem('cj_cache',JSON.stringify({ts:Date.now(),TH:TH,TP:TP,FE:FE,TF:TF,IA:IA,LIST:LIST}));}catch(e){}
-      LIST.forEach(function(l){
-        var raw=String(l.cedula||'').trim();
-        var c=normCed(raw);
-        if(c){
-          LIST_MAP[c]=l;
-          LIST_MAP[raw]=l; // also store raw
-          var s=c.replace(/^0+/,'');
-          if(s) LIST_MAP[s]=l;
-        }
-      });
-    tarifasOk=true;
-    if(data.drive_folder_id){const _df=$d('drive-folder');if(_df&&!_df.value)_df.value=data.drive_folder_id;}
-    setApiSt('ok',`${TH.length} áreas · ${TP.length} tallas · ${FE.length} feriados · ${LIST.length} listado · ${IA.length} adicional`);
-    renderTar();checkReady();
-  }).catch(()=>setApiSt('err','Error de conexión con Sheet. Verifica la URL del API.'));
+  if(!_url){setApiSt('err','⚠ No hay URL del Apps Script configurada.');return;}
+
+  // ── PASO 1: Mostrar caché inmediatamente si existe (< 48h) ───────────────
+  var _cacheStr=null;
+  try{_cacheStr=localStorage.getItem('cj_cache');}catch(e){}
+  if(_cacheStr){
+    try{
+      var _cc=JSON.parse(_cacheStr);
+      var _age=Date.now()-(_cc.ts||0);
+      if(_cc.TH&&_cc.TH.length&&_age<172800000){ // 48 horas
+        TH=_cc.TH;TP=_cc.TP||[];FE=_cc.FE||[];TF=_cc.TF||[];IA=_cc.IA||[];LIST=_cc.LIST||[];
+        _buildMaps();
+        tarifasOk=true;
+        var _ageMin=Math.round(_age/60000);
+        var _ageStr=_ageMin<60?_ageMin+'m':Math.round(_ageMin/60)+'h';
+        setApiSt('ok','(caché '+_ageStr+') '+TH.length+' áreas · '+LIST.length+' listado · '+IA.length+' adicional — actualizando…');
+        renderTar(); checkReady();
+        // Si el tab Info Adicional está activo, renderizarlo
+        if(document.getElementById('p7')&&document.getElementById('p7').classList.contains('on'))
+          renderInfoAdicional();
+      }
+    }catch(e){}
+  }
+
+  // ── PASO 2: Actualizar desde Sheets en segundo plano (siempre) ───────────
+  var _silent=tarifasOk; // si ya mostramos caché, la actualización es silenciosa
+  if(!_silent) setApiSt('loading','Conectando con Google Sheet…');
+
+  fetch(_url)
+    .then(function(r){return r.json();})
+    .then(function(data){
+      TH=data.tarifa_hora||[];TP=data.talla_prod||[];TF=data.tarifa_expreso||[];
+      FE=data.feriados||[];IA=data.info_adicional||[];LIST=data.listado||[];
+      _buildMaps();
+      // Guardar en caché con timestamp actual
+      try{localStorage.setItem('cj_cache',JSON.stringify({ts:Date.now(),TH:TH,TP:TP,FE:FE,TF:TF,IA:IA,LIST:LIST}));}catch(e){}
+      tarifasOk=true;
+      if(data.drive_folder_id){var _df=$d('drive-folder');if(_df&&!_df.value)_df.value=data.drive_folder_id;}
+      setApiSt('ok',TH.length+' áreas · '+TP.length+' tallas · '+FE.length+' feriados · '+LIST.length+' listado · '+IA.length+' adicional');
+      renderTar(); checkReady();
+      // Actualizar Info Adicional si está visible
+      if(document.getElementById('p7')&&document.getElementById('p7').classList.contains('on'))
+        renderInfoAdicional();
+    })
+    .catch(function(e){
+      if(!_silent) setApiSt('err','Error de conexión. Usando caché local.');
+      else setApiSt('ok','(caché) '+TH.length+' áreas · Sin conexión con Sheets');
+    });
+}
+
+/* ── Construir IA_MAP y LIST_MAP desde arrays globales ─────────────────── */
+function _buildMaps(){
+  IA_MAP={};
+  IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
+  LIST_MAP={};
+  LIST.forEach(function(l){
+    var raw=String(l.cedula||'').trim();
+    var c=normCed(raw);
+    if(c){LIST_MAP[c]=l;LIST_MAP[raw]=l;var s=c.replace(/^0+/,'');if(s)LIST_MAP[s]=l;}
+  });
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -3085,19 +3142,18 @@ function _recargarDatos(silent){
       TF   = data.tarifa_expreso || [];
       FE   = data.feriados       || [];
       IA   = data.info_adicional || [];
-      IA_MAP={};
-      IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
-      LIST = data.listado || [];
-      LIST_MAP={};
-      LIST.forEach(function(l){
-        var c=normCed(l.cedula);
-        if(c){LIST_MAP[c]=l;LIST_MAP[l.cedula]=l;var s=c.replace(/^0+/,'');if(s)LIST_MAP[s]=l;}
-      });
+      LIST = data.listado        || [];
+      _buildMaps();
       USERS = data.usuarios || USERS || [];
       tarifasOk=true;
+      // Actualizar caché
+      try{localStorage.setItem('cj_cache',JSON.stringify({ts:Date.now(),TH:TH,TP:TP,FE:FE,TF:TF,IA:IA,LIST:LIST}));}catch(e){}
       if(!silent){
         renderTar();
-        toast('✓ Datos actualizados: '+TH.length+' áreas · '+TP.length+' tallas · '+LIST.length+' listado');
+        toast('✓ Datos actualizados: '+TH.length+' áreas · '+TP.length+' tallas · '+LIST.length+' listado · '+IA.length+' adicional');
+        // Actualizar Info Adicional si está visible
+        if(document.getElementById('p7')&&document.getElementById('p7').classList.contains('on'))
+          renderInfoAdicional();
       }
       checkReady();
     })
