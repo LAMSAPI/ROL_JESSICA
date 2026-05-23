@@ -148,7 +148,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 .wa-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;background:rgba(37,211,102,0.15);border:1px solid rgba(37,211,102,0.25);border-radius:50%;cursor:pointer;transition:background 0.2s,transform 0.1s}
 .wa-btn:hover{background:rgba(37,211,102,0.3);transform:scale(1.1)}
 .wa-btn svg,.wa-btn-sm svg{width:17px;height:17px}
-.wa-btn-sm{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(37,211,102,0.15);border:1px solid rgba(37,211,102,0.25);border-radius:50%;cursor:pointer}
+.wa-btn-sm{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.3);border-radius:50%;cursor:pointer;transition:background 0.2s,transform 0.1s}.wa-btn-sm:hover{background:rgba(37,211,102,0.25);transform:scale(1.1)}.wa-btn-sm svg{width:18px;height:18px}
 /* Feriados/expreso grid */
 .fer-grid{display:flex;flex-direction:column;gap:5px}
 .fer-row,.exp-row{display:flex;align-items:center;gap:12px;background:var(--bg3);border-radius:var(--rs);padding:8px 12px;font-size:0.78rem}
@@ -305,6 +305,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <button class="tab"     onclick="st('p4',this)">🔍 Detalle</button>
     <button class="tab"     onclick="st('p5',this)">📊 Resumen</button>
     <button class="tab"     onclick="st('p6',this);renderHist();if(!loadHist().length)cargarDesdeSheets(true)">📚 Historial</button>
+    <button class="tab"     onclick="st('p7',this);renderInfoAdicional()">👤 Adicional</button>
   </div>
   <div class="cnt">
 
@@ -314,7 +315,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <div style="display:none">
   <input type="text" id="cargo-input" value=""/>
   <input type="text" id="sede-input" value="AMBAS"/>
-  <input type="text" id="drive-folder" value="1lJLZiujk5q-hBi9T1CYs1UfBU2pnMF3h"/>
+  <input type="text" id="drive-folder" value="1-LWtdRVKcaUReMrUlKjPyy1wd3G9A8rc"/>
 </div>
         <div class="ctit">Cargar archivos CUADRILLA JESSICA</div>
         <div class="csub">Tarifas y listado se cargan desde Google Sheet automáticamente.</div>
@@ -552,7 +553,72 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
       </button>
     </div>
   </div>
-</div>
+
+    <!-- TAB 7: INFO ADICIONAL -->
+    <div id="p7" class="pane">
+      <div class="card">
+        <div class="ctit">👤 INFO_ADICIONAL — Datos bancarios y celular</div>
+        <div class="csub">Registros cargados desde Google Sheet. Aquí puedes ver y agregar cédulas con banco, cuenta y celular. Se usan automáticamente en los roles.</div>
+        <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:6px;padding:8px 12px;font-size:0.72rem;color:var(--am);margin-bottom:10px">
+          ⚠ Para guardar nuevos registros en Sheets, agrega la acción <code style="background:rgba(0,0,0,0.2);padding:1px 4px;border-radius:3px">upsert_info_adicional</code> al CODEX.gs.
+          <button onclick="document.getElementById('codex-snip').style.display=document.getElementById('codex-snip').style.display==='none'?'block':'none'" style="margin-left:8px;font-size:0.7rem;padding:2px 8px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:4px;color:var(--am);cursor:pointer">Ver código GS</button>
+        </div>
+        <div id="codex-snip" style="display:none;background:#0f0520;border:1px solid rgba(168,85,247,0.2);border-radius:6px;padding:12px;margin-bottom:10px;font-size:0.72rem">
+          <div style="color:var(--tx2);margin-bottom:6px">Agrega esto en <code style="color:var(--ac)">doPost(e)</code> del CODEX.gs, antes del último <code style="color:var(--am)">return okResp();</code>:</div>
+          <pre style="color:#c084fc;font-family:monospace;font-size:0.68rem;white-space:pre-wrap;margin:0;overflow-x:auto">if (data.action === 'upsert_info_adicional') {
+  var shIA = ss.getSheetByName('INFO_ADICIONAL');
+  if (!shIA) return errResp('Hoja INFO_ADICIONAL no encontrada');
+  var vIA = shIA.getDataRange().getValues();
+  var hIA = vIA[0].map(function(x){return String(x).toUpperCase().replace(/[^A-Z0-9]/g,'');});
+  var iCed=hIA.findIndex(function(h){return h.indexOf('CEDULA')>=0;});
+  var iBan=hIA.findIndex(function(h){return h==='BANCO';});
+  var iTip=hIA.findIndex(function(h){return h.indexOf('TIPO')>=0;});
+  var iCta=hIA.findIndex(function(h){return h.indexOf('CUENTA')>=0&amp;&amp;h!==hIA[iCed||0];});
+  var iCel=hIA.findIndex(function(h){return h==='CELULAR';});
+  var iNPr=hIA.findIndex(function(h){return h.indexOf('NOMBRE')>=0&amp;&amp;h.indexOf('PROP')>=0;});
+  if(iCed&lt;0)iCed=0;
+  var found=-1;
+  for(var ia=1;ia&lt;vIA.length;ia++){
+    if(fmtCedula(vIA[ia][iCed])===fmtCedula(data.cedula)){found=ia;break;}
+  }
+  var setC=function(row,col,val){if(col>=0)shIA.getRange(row+1,col+1).setValue(val||'');};
+  if(found>=0){
+    setC(found,iBan,data.banco);setC(found,iTip,data.tipo_cuenta);
+    setC(found,iCta,data.cuenta_banco);setC(found,iCel,data.celular);
+    setC(found,iNPr,data.nombre_prop);
+  } else {
+    var nr=new Array(shIA.getLastColumn()).fill('');
+    if(iCed>=0)nr[iCed]=data.cedula;if(iBan>=0)nr[iBan]=data.banco||'';
+    if(iTip>=0)nr[iTip]=data.tipo_cuenta||'';if(iCta>=0)nr[iCta]=data.cuenta_banco||'';
+    if(iCel>=0)nr[iCel]=data.celular||'';if(iNPr>=0)nr[iNPr]=data.nombre_prop||'';
+    shIA.appendRow(nr);
+  }
+  return okResp({action:'upsert_ok'});
+}</pre>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <input id="ia-search" type="text" placeholder="🔍 Buscar por cédula, banco..." oninput="renderInfoAdicional()" style="flex:1;min-width:160px;padding:7px 10px;background:var(--bg2);border:1px solid var(--brd);border-radius:6px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none"/>
+          <button onclick="showAddIA()" style="padding:7px 14px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border:none;border-radius:6px;font-family:var(--fn);font-size:0.82rem;cursor:pointer;font-weight:600">+ Nuevo</button>
+        </div>
+        <div id="ia-form" style="display:none;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:14px;margin-bottom:12px">
+          <div style="font-size:0.82rem;font-weight:600;color:var(--ac);margin-bottom:10px" id="ia-form-title">➕ Nuevo registro</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Cédula/RUC *</div><input id="ia-ced" type="text" placeholder="0912345678" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
+            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">📱 Celular</div><input id="ia-cel" type="tel" placeholder="0987654321" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
+            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Banco</div><input id="ia-banco" type="text" placeholder="Banco Pichincha" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
+            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Tipo cuenta</div><select id="ia-tipo" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none"><option>AHORROS</option><option>CORRIENTE</option></select></div>
+            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Nº Cuenta</div><input id="ia-ncuenta" type="text" placeholder="2201234567" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
+            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Nombre propietario</div><input id="ia-nprop" type="text" placeholder="(si cuenta es prestada)" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="saveIA()" style="flex:1;padding:8px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border:none;border-radius:6px;font-family:var(--fn);font-size:0.82rem;cursor:pointer;font-weight:600">💾 Guardar</button>
+            <button onclick="document.getElementById('ia-form').style.display='none'" style="padding:8px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:6px;color:var(--tx2);font-family:var(--fn);font-size:0.82rem;cursor:pointer">Cancelar</button>
+          </div>
+        </div>
+        <div id="ia-list" style="font-size:0.82rem"><div style="color:var(--tx3);padding:1rem">Cargando...</div></div>
+      </div>
+    </div>
+  </div>
 
 <!-- ═══ DIV OCULTO PARA PDF ═══ -->
 <div id="pdf-wrap" style="position:fixed;left:-9999px;top:0;width:794px;background:#fff;z-index:-1"></div>
@@ -584,6 +650,18 @@ const _nt = 'palma_gye_x7k2';
 window.addEventListener('DOMContentLoaded', function(){
   // Auto-restore API URL: DEFAULT_API del archivo, o guardada en localStorage
   if(DEFAULT_API) localStorage.setItem('sap_api_url', DEFAULT_API);
+  // ── Restaurar caché local (carga instantánea) ───────────────────────
+  try{
+    var _cc=JSON.parse(localStorage.getItem('cj_cache')||'null');
+    if(_cc&&_cc.ts&&(Date.now()-_cc.ts)<86400000){// válido 24h
+      if(_cc.TH&&_cc.TH.length){TH=_cc.TH;TP=_cc.TP||[];FE=_cc.FE||[];TF=_cc.TF||[];IA=_cc.IA||[];LIST=_cc.LIST||[];
+        IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
+        LIST_MAP={};LIST.forEach(function(p){if(p.cedula)LIST_MAP[normCed(p.cedula)]=p;});
+        setApiSt('ok','(caché) '+TH.length+' áreas · '+TP.length+' tallas · '+FE.length+' feriados');
+        renderTarifas();
+      }
+    }
+  }catch(e){}
   // FIX: aviso si no hay URL configurada en ningún lado
   if(!DEFAULT_API && !localStorage.getItem('sap_api_url')){
     const le=$d('le');
@@ -616,6 +694,91 @@ function fdtSort(v){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function hFmt(h){const hrs=Math.floor(h),min=Math.round((h-hrs)*60);return hrs+':'+String(min).padStart(2,'0')+'h';}
+
+/* ══ INFO_ADICIONAL UI ════════════════════════════════════════════════════ */
+function renderInfoAdicional(){
+  var q=(document.getElementById('ia-search')||{value:''}).value.toLowerCase().trim();
+  var list=IA||[];
+  if(q) list=list.filter(function(x){
+    return (x.cedula||'').includes(q)||(x.banco||'').toLowerCase().includes(q)||
+           (x.nombre_prop||'').toLowerCase().includes(q)||(x.cuenta_banco||'').includes(q);
+  });
+  var el=document.getElementById('ia-list');
+  if(!el)return;
+  if(!list.length){el.innerHTML='<div style="color:var(--tx3);padding:1rem">Sin registros'+(q?' para "'+q+'"':'')+'</div>';return;}
+  el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.78rem">'
+    +'<thead><tr style="background:rgba(168,85,247,0.12);font-size:0.65rem;text-transform:uppercase;color:var(--tx2)">'
+    +'<th style="padding:8px">Cédula</th><th style="padding:8px">Banco</th><th style="padding:8px">Tipo</th>'
+    +'<th style="padding:8px">N° Cuenta</th><th style="padding:8px">📱 Celular</th><th style="padding:8px">Propietario</th></tr></thead>'
+    +'<tbody>'
+    +list.map(function(ia,i){
+      return '<tr style="border-bottom:1px solid var(--brd);'+(i%2?'background:rgba(255,255,255,0.02)':'')+'">'
+        +'<td style="padding:7px 8px;font-family:var(--mo);color:var(--ac)">'+ia.cedula+'</td>'
+        +'<td style="padding:7px 8px;color:var(--tx)">'+( ia.banco||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:var(--tx2)">'+( ia.tipo_cuenta||'—')+'</td>'
+        +'<td style="padding:7px 8px;font-family:var(--mo)">'+( ia.cuenta_banco||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#4ade80;font-family:var(--mo)">'+( ia.celular||'—')+'</td>'
+        +'<td style="padding:7px 8px;font-size:0.72rem;color:var(--tx2)">'+( ia.nombre_prop||'—')+'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+
+function showAddIA(){
+  var f=document.getElementById('ia-form');
+  if(!f)return;
+  f.style.display='block';
+  ['ia-ced','ia-cel','ia-banco','ia-ncuenta','ia-nprop'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('ia-form-title').textContent='➕ Nuevo registro';
+  document.getElementById('ia-ced').focus();
+}
+
+function saveIA(){
+  var ced=(document.getElementById('ia-ced').value||'').trim();
+  if(!ced){toast('⚠ Cédula requerida');return;}
+  var cel=(document.getElementById('ia-cel').value||'').trim();
+  var banco=(document.getElementById('ia-banco').value||'').trim();
+  var tipo=(document.getElementById('ia-tipo').value||'AHORROS');
+  var ncuenta=(document.getElementById('ia-ncuenta').value||'').trim();
+  var nprop=(document.getElementById('ia-nprop').value||'').trim();
+  // Update local IA array
+  var existing=IA.findIndex(function(x){return x.cedula===ced;});
+  var obj={cedula:ced,banco:banco,tipo_cuenta:tipo,cuenta_banco:ncuenta,celular:cel,nombre_prop:nprop,ced_prop:'',aprobacion:''};
+  if(existing>=0){IA[existing]=obj;}else{IA.push(obj);}
+  // Update IA_MAP and LIST_MAP with celular
+  IA_MAP[ced]=obj;
+  // Also update LIST_MAP celular if exists
+  if(LIST_MAP[ced]) LIST_MAP[ced].celular=cel;
+  // Save to Sheets via a generic upsert (write to INFO_ADICIONAL sheet)
+  var api=getAPI();
+  if(api&&api.includes('script.google')){
+    fetch(api,{method:'POST',body:JSON.stringify({action:'upsert_info_adicional',
+      cedula:ced,banco:banco,tipo_cuenta:tipo,cuenta_banco:ncuenta,celular:cel,nombre_prop:nprop})})
+      .then(function(r){return r.json();})
+      .then(function(r){
+        if(r.ok){toast('✓ Guardado en Sheets');}
+        else{toast('✓ Guardado localmente (Sheets: '+r.error+')');}
+      }).catch(function(){toast('✓ Guardado localmente');});
+  } else {
+    toast('✓ Guardado localmente (sin API)');
+  }
+  document.getElementById('ia-form').style.display='none';
+  renderInfoAdicional();
+}
+
+/* ══ CELULAR LOOKUP: desde IA y desde LISTADO ════════════════════════════ */
+function getCelularByCedula(ced){
+  var c=String(ced||'').trim();
+  if(!c)return '';
+  // Priority 1: INFO_ADICIONAL
+  if(IA_MAP[c]&&IA_MAP[c].celular) return IA_MAP[c].celular;
+  // Priority 2: LISTADO
+  if(LIST_MAP[c]&&LIST_MAP[c].celular) return LIST_MAP[c].celular;
+  return '';
+}
+
 function toast(m){const t=$d('tst');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),5000);}
 function sectEmoji(s){return(s&&s.toUpperCase()==='LOCAL')?'🏠':'🚌';}
 
@@ -682,6 +845,8 @@ function cargarTarifas(){
   fetch(_url).then(r=>r.json()).then(data=>{
     TH=data.tarifa_hora||[];TP=data.talla_prod||[];TF=data.tarifa_expreso||[];
     FE=data.feriados||[];IA=data.info_adicional||[];IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});LIST=data.listado||[];LIST_MAP={};
+    // ── Guardar en caché local ──────────────────────────────────────────
+    try{localStorage.setItem('cj_cache',JSON.stringify({ts:Date.now(),TH:TH,TP:TP,FE:FE,TF:TF,IA:IA,LIST:LIST}));}catch(e){}
       LIST.forEach(function(l){
         var raw=String(l.cedula||'').trim();
         var c=normCed(raw);
@@ -882,7 +1047,9 @@ function renderTar(){
       +'</div>'
       +'</div>';
   }).join(''):'<div style="color:var(--tx3);padding:1rem">Sin datos</div>';
-  $d('gfer').innerHTML=FE.length?FE.map(function(f,fi){return '<div class="fer-row" style="align-items:center;flex-wrap:wrap;gap:6px"><span class="fer-date">'+f.fecha+'</span><span class="fer-name" style="flex:1">'+(f.nombre||'Feriado')+'</span><span style="font-size:0.65rem;color:var(--tx2)">$/h</span><input data-fi="'+fi+'" data-fd="extra_hora_pg" type="number" step="0.01" min="0" value="'+(+(f.extra_hora_pg||0)).toFixed(2)+'" style="width:60px;padding:3px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.8rem;text-align:right;outline:none" onchange="svFer(this)"><span style="font-size:0.65rem;color:var(--tx2)">$/día</span><input data-fi="'+fi+'" data-fd="extra_avance_pg" type="number" step="0.01" min="0" value="'+(+(f.extra_avance_pg||0)).toFixed(2)+'" style="width:60px;padding:3px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--pu);font-family:var(--mo);font-size:0.8rem;text-align:right;outline:none" onchange="svFer(this)"></div>';}).join(''):'<div style="color:var(--tx3)">Sin feriados</div>';
+  $d('gfer').innerHTML=(FE.length?FE.map(function(f,fi){
+    return '<div class="fer-row" style="flex-direction:column;align-items:stretch;gap:5px;padding:8px 10px;background:rgba(168,85,247,0.04);border-radius:6px;border:1px solid rgba(168,85,247,0.12)">'      +'<div style="display:flex;align-items:center;gap:6px">'        +'<input data-fi="'+fi+'" data-fd="fecha" type="date" value="'+f.fecha+'" style="padding:3px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--tx);font-family:var(--fn);font-size:0.78rem;outline:none" onchange="svFerFecha(this)" title="Cambiar fecha del feriado"/>'        +'<span style="flex:1;font-size:0.78rem;color:var(--tx2)">'+(f.nombre||'Feriado')+'</span>'      +'</div>'      +'<div style="display:flex;align-items:center;gap:6px">'        +'<span style="font-size:0.63rem;color:var(--am);min-width:70px" title="Se suma a la tarifa por hora en días feriados">+$/h hora</span>'        +'<input data-fi="'+fi+'" data-fd="extra_hora_pg" type="number" step="0.01" min="0" value="'+(+(f.extra_hora_pg||0)).toFixed(2)+'" style="width:60px;padding:3px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--am);font-family:var(--mo);font-size:0.8rem;text-align:right;outline:none" onchange="svFer(this)" title="Suma este valor a cada hora trabajada en feriado"/>'        +'<span style="font-size:0.63rem;color:var(--pu);min-width:70px" title="Se suma al pago por avance/producción en días feriados">+$/día avance</span>'        +'<input data-fi="'+fi+'" data-fd="extra_avance_pg" type="number" step="0.01" min="0" value="'+(+(f.extra_avance_pg||0)).toFixed(2)+'" style="width:60px;padding:3px 6px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--pu);font-family:var(--mo);font-size:0.8rem;text-align:right;outline:none" onchange="svFer(this)" title="Suma este valor al avance trabajado en feriado"/>'      +'</div>'    +'</div>';
+  }).join(''):'<div style="color:var(--tx3)">Sin feriados</div>');
   $d('gexp').innerHTML=TF.length?TF.map(function(t,ti){return '<div class="exp-row"><span class="exp-sector">'+sectEmoji(t.sector)+' <strong>'+t.sector+'</strong></span><div style="display:flex;align-items:center;gap:6px"><span style="font-size:0.65rem;color:var(--tx2)">$/día</span><input data-ti="'+ti+'" type="number" step="0.01" min="0" value="'+(+(t.valor_dia||0)).toFixed(2)+'" style="width:70px;padding:4px 8px;background:var(--bg2);border:1px solid var(--brd2);border-radius:4px;color:var(--re);font-family:var(--mo);font-size:0.85rem;text-align:right;outline:none" onchange="svExp(this)"></div></div>';}).join(''):'<div style="color:var(--tx3)">Sin tarifas expreso</div>';
 }
 
@@ -997,7 +1164,7 @@ function bM(){
       // Sector: 1) LISTADO por cédula, 2) columna SECTOR en archivos subidos
       var _liSect=(li&&li.sector)?String(li.sector).trim():'';
         const sector=_liSect||String(r['SECTOR']||r['SECTOR ']||r['CIUDAD']||'').trim()||'';
-      const celular=(li&&li.celular)||'';
+      const celular=getCelularByCedula(r.cedula)||(li&&li.celular)||'';
       const sede=(li&&li.sede)||'';
       const aprobacion=ia?ia.aprobacion:'';
       const aprobado=['SI','SÍ','YES','S','1','TRUE'].includes((aprobacion||'').toUpperCase().trim());
@@ -1466,7 +1633,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     <!-- HEADER -->
     <div style="background:${colH};color:#fff;padding:20px 28px;display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:14px">
-        <img src="${logo}" style="width:60px;height:60px;border-radius:50%;border:2px solid rgba(255,255,255,0.3)" alt="CJ"/>
+        <img src="${logo}" style="width:60px;height:60px;border-radius:50%;border:2.5px solid rgba(232,121,249,0.8);box-shadow:0 0 14px rgba(168,85,247,0.6),0 0 0 4px rgba(168,85,247,0.15)" alt="CJ"/>
         <div>
           <div style="font-size:20px;font-weight:800;letter-spacing:0.05em">CUADRILLA JESSICA</div>
           <div style="font-size:11px;opacity:0.75;letter-spacing:0.08em">SISTEMA DE PRODUCCIÓN · SOPASE</div>
@@ -1594,9 +1761,17 @@ function rmWA(){
   msg+=SEP+'\n';
   if(w.lineasH.length){
     msg+='\n*⏱ HORAS TRABAJADAS*\n';
-    const g={};w.lineasH.forEach(l=>{if(!g[l.fecha])g[l.fecha]={h:0,area:l.det2,turno:l.turno,esH:l.esHoliday,exH:l.extraHora};g[l.fecha].h+=l.cant;});
-    Object.entries(g).sort(function(a,b){return a[0]>b[0]?1:-1;}).forEach(function(entry){var f=entry[0],v=entry[1];var tk=v.turno==='NOCTURNO'?'🌙':'☀️';var fs=v.esH&&v.exH>0?' 🎉+$'+v.exH.toFixed(2)+'/h':'';msg+='  '+tk+' '+f+'  '+v.area+'  '+hFmt(v.h)+fs+'\n';});
-    msg+=LIN+'\n';msg+=`  *Total: ${hFmt(w.hT)}  →  *$${w.tH.toFixed(2)}*\n`;
+    const sorted=[...w.lineasH].sort((a,b)=>a.fechaSort>b.fechaSort?1:-1);
+    sorted.forEach(function(l){
+      var tk=l.turno==='NOCTURNO'?'🌙':'☀️';
+      var ing=l.horaIng?(' '+l.horaIng):'';
+      var sal=l.horaSal?(' → '+l.horaSal):'';
+      var horario=(ing||sal)?(ing+sal):'';
+      var fs=l.esHoliday&&l.extraHora>0?' 🎉':'';
+      msg+='  '+tk+' '+l.fecha+'  '+l.det2+'\n';
+      msg+='     '+hFmt(l.cant)+(horario?'  🕐'+horario:'')+(fs?' +$'+l.extraHora.toFixed(2)+'/h':'')+'\n';
+    });
+    msg+=LIN+'\n';msg+=`  *Total: ${hFmt(w.hT)}  →  $${w.tH.toFixed(2)}*\n`;
   }
   if(w.lineasP.length){
     msg+='\n*📦 PRODUCCIÓN*\n';
@@ -1675,7 +1850,7 @@ const HIST_KEY='sap_hist_v1';
 function loadHist(){try{return JSON.parse(localStorage.getItem(HIST_KEY)||'[]');}catch(e){return[];}}
 function saveHistData(d){localStorage.setItem(HIST_KEY,JSON.stringify(d));}
 
-const WA_ICO='<svg viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.554 4.122 1.521 5.858L.057 23.882a.5.5 0 00.606.61l6.213-1.63A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.882a9.878 9.878 0 01-5.031-1.371l-.36-.214-3.733.979.995-3.642-.234-.374A9.855 9.855 0 012.118 12C2.118 6.532 6.532 2.118 12 2.118S21.882 6.532 21.882 12 17.468 21.882 12 21.882z"/></svg>';
+const WA_ICO='<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="16" fill="#25d366"/><path fill="#fff" d="M23.5 8.5A10.44 10.44 0 0016 5.5C10.2 5.5 5.5 10.2 5.5 16c0 1.84.48 3.63 1.4 5.21L5.5 26.5l5.43-1.43A10.45 10.45 0 0016 26.5c5.8 0 10.5-4.7 10.5-10.5 0-2.8-1.09-5.43-3-7.5zM16 24.7a8.66 8.66 0 01-4.42-1.2l-.32-.19-3.22.85.87-3.16-.21-.33A8.65 8.65 0 017.3 16c0-4.8 3.9-8.7 8.7-8.7 2.33 0 4.51.9 6.15 2.55A8.63 8.63 0 0124.7 16c0 4.8-3.9 8.7-8.7 8.7zm4.77-6.51c-.26-.13-1.54-.76-1.78-.85-.24-.09-.41-.13-.58.13s-.67.85-.82 1.02c-.15.17-.3.2-.56.07-.26-.13-1.1-.4-2.1-1.29-.78-.69-1.3-1.54-1.45-1.8-.15-.26-.02-.4.11-.53.12-.12.26-.3.39-.46.13-.15.17-.26.26-.43.09-.17.04-.32-.02-.46-.06-.13-.58-1.41-.8-1.93-.21-.5-.43-.44-.58-.44l-.5-.01c-.17 0-.45.06-.69.32-.24.26-.91.89-.91 2.17s.93 2.52 1.06 2.69c.13.17 1.84 2.8 4.45 3.93.62.27 1.1.43 1.48.55.62.2 1.19.17 1.64.1.5-.07 1.54-.63 1.76-1.24.22-.61.22-1.13.15-1.24-.07-.11-.24-.17-.5-.3z"/></svg>';
 
 function togglePago(cierreId,key){
   key=key.replace(/__q__/g,"'");
@@ -1742,6 +1917,7 @@ function openRolHist(cierreId,key){
     }
   }
   const subParts=[];
+  if(!t.celular&&IA_MAP){var _ia2=IA_MAP[normCed(t.cedula)];if(_ia2&&_ia2.celular)t.celular=_ia2.celular;}
   if(t.celular)subParts.push('📱 '+t.celular);
   if(t.sector)subParts.push(sectEmoji(t.sector)+' '+t.sector);
   if(t.cuentaBanco||t.cuenta_banco)subParts.push('🏦 '+(t.cuentaBanco||t.cuenta_banco)+' ('+(t.banco||'')+')');
@@ -1858,11 +2034,7 @@ function renderHist(){
         +'<td style="padding:10px 8px">'+bancStr+'</td>'
         +'<td style="padding:10px 8px;font-family:var(--mo);font-weight:700;color:var(--pu)">$'+neto.toFixed(2)+'</td>'
         +'<td><button class="bpag '+(esPag?'pagado':'pend')+'" onclick="togglePago(\''+c.id+'\',\''+sk+'\')">'+(esPag?'✓ Pagado':'● Pendiente')+'</button></td>'
-        +'<td>'
-          +(r.drive_url
-            ?'<a href="'+r.drive_url+'" target="_blank" style="font-size:0.72rem;color:var(--ac);padding:2px 6px;background:rgba(59,130,246,0.1);border-radius:4px;border:1px solid rgba(59,130,246,0.2);text-decoration:none">📄</a>'
-            :'<button data-cid="'+c.id+'" data-sk="'+sk+'" onclick="savePdfDriveFromHist(this.dataset.cid,this.dataset.sk,this)" style="font-size:0.7rem;color:var(--tx3);background:none;border:1px dashed var(--brd2);border-radius:4px;padding:2px 6px;cursor:pointer">☁</button>')
-          +'</td>'
+        +'<td style="padding:6px 8px">'          +'<div style="display:flex;align-items:center;gap:4px">'          +(r.drive_url            ?'<a href="'+r.drive_url+'" target="_blank" title="Ver PDF en Drive" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;font-size:0.8rem;border-radius:50%;border:1px solid rgba(34,197,94,0.3);background:rgba(34,197,94,0.1);text-decoration:none" >📄</a>'            :'<button data-cid="'+c.id+'" data-sk="'+sk+'" onclick="savePdfDriveFromHist(this.dataset.cid,this.dataset.sk,this)" title="Generar PDF → Drive" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;font-size:0.75rem;color:var(--tx3);background:none;border:1px dashed var(--brd2);border-radius:50%;cursor:pointer">☁</button>')          +'<button data-cid2="'+c.id+'" data-sk2="'+sk+'" onclick="histWA(this.dataset.cid2,this.dataset.sk2)" title="Enviar por WhatsApp" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;border:1px solid rgba(37,211,102,0.35);background:rgba(37,211,102,0.1);cursor:pointer;padding:0">'+WA_ICO+'</button>'          +'</div>'          +'</td>'
         +'</tr>';
     }).join('');
 
@@ -2125,6 +2297,17 @@ function svFer(inp){
     .then(function(r){return r.json();})
     .then(function(r){inp.style.borderColor=r.ok?'#22c55e':'#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);if(r.ok)toast('✓ Feriado '+f.fecha);})
     .catch(function(e){inp.style.borderColor='#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);});
+}
+/* ── svFerFecha: cambia fecha de feriado en Sheet ──────────────────────── */
+function svFerFecha(inp){
+  var fi=parseInt(inp.dataset.fi),v=inp.value;
+  var f=FE[fi]; if(!f) return;
+  f.fecha=v;
+  inp.style.borderColor='#f59e0b';
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'update_feriado',id:f.id,fecha:v,extra_hora_pg:f.extra_hora_pg,extra_avance_pg:f.extra_avance_pg})})
+    .then(function(r){return r.json();})
+    .then(function(r){inp.style.borderColor=r.ok?'#22c55e':'#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);if(r.ok)toast('✓ Fecha feriado → '+v);})
+    .catch(function(){inp.style.borderColor='#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);});
 }
 /* ── svExp: guarda tarifa expreso en Sheet ─────────────────────────────── */
 function svExp(inp){
