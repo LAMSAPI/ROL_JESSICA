@@ -455,6 +455,31 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 <div id="hist-body"></div>
     </div>
 
+    <!-- TAB 7: INFORMACIÓN ADICIONAL -->
+    <div id="p7" class="pane">
+      <div class="card">
+        <!-- Header -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+          <div>
+            <div class="ctit" style="font-size:1rem">👤 Información Adicional</div>
+            <div class="csub" style="margin-bottom:0">Datos bancarios, celular y propietario de cuenta. Se usan automáticamente en los roles y WhatsApp.</div>
+          </div>
+          <button onclick="openModalIA(null)" style="padding:9px 18px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border:none;border-radius:8px;font-family:var(--fn);font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px">
+            ➕ Nuevo registro
+          </button>
+        </div>
+        <!-- Stats + Search -->
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+          <input id="ia-search" type="text" placeholder="🔍 Buscar cédula, nombre, banco..."
+            oninput="renderInfoAdicional()"
+            style="flex:1;min-width:180px;padding:8px 12px;background:var(--bg3);border:1px solid var(--brd2);border-radius:8px;color:var(--tx);font-family:var(--fn);font-size:0.83rem;outline:none"/>
+          <div id="ia-stats" style="font-size:0.72rem;color:var(--tx3);font-family:var(--mo);white-space:nowrap"></div>
+        </div>
+        <!-- Table -->
+        <div id="ia-list" style="font-size:0.82rem"><div style="color:var(--tx3);padding:2rem;text-align:center">Cargando...</div></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -553,32 +578,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
       </button>
     </div>
   </div>
-
-    <!-- TAB 7: INFORMACIÓN ADICIONAL -->
-    <div id="p7" class="pane">
-      <div class="card">
-        <!-- Header -->
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
-          <div>
-            <div class="ctit" style="font-size:1rem">👤 Información Adicional</div>
-            <div class="csub" style="margin-bottom:0">Datos bancarios, celular y propietario de cuenta. Se usan automáticamente en los roles y WhatsApp.</div>
-          </div>
-          <button onclick="openModalIA(null)" style="padding:9px 18px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border:none;border-radius:8px;font-family:var(--fn);font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px">
-            ➕ Nuevo registro
-          </button>
-        </div>
-        <!-- Stats + Search -->
-        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-          <input id="ia-search" type="text" placeholder="🔍 Buscar cédula, nombre, banco..."
-            oninput="renderInfoAdicional()"
-            style="flex:1;min-width:180px;padding:8px 12px;background:var(--bg3);border:1px solid var(--brd2);border-radius:8px;color:var(--tx);font-family:var(--fn);font-size:0.83rem;outline:none"/>
-          <div id="ia-stats" style="font-size:0.72rem;color:var(--tx3);font-family:var(--mo);white-space:nowrap"></div>
-        </div>
-        <!-- Table -->
-        <div id="ia-list" style="font-size:0.82rem"><div style="color:var(--tx3);padding:2rem;text-align:center">Cargando...</div></div>
-      </div>
-    </div>
-  </div>
+</div>
 
 <!-- ═══ MODAL INFO ADICIONAL ═══ -->
 <div id="iamod-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:500;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeModalIA()">
@@ -1873,6 +1873,16 @@ async function rmPDF(){
 
 function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,obs}){
   const logo=LOGO_URI;
+  // Logo HTML-based (html2canvas no puede renderizar SVG con filtros)
+  const logoHTML=`<div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#1a0533,#2d0a5e);border:2.5px solid #a855f7;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 12px rgba(168,85,247,0.5)">
+    <div style="width:36px;height:36px;position:relative">
+      <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:8px solid #f0abfc"></div>
+      <div style="position:absolute;top:8px;left:0;width:20px;height:18px;background:linear-gradient(135deg,#e879f9,#a855f7)"></div>
+      <div style="position:absolute;top:8px;right:0;width:20px;height:18px;background:#c084fc"></div>
+      <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:20px solid transparent;border-right:20px solid transparent;border-top:10px solid #7c3aed"></div>
+      <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);color:white;font-family:Georgia,serif;font-size:14px;font-weight:bold;letter-spacing:0">J</div>
+    </div>
+  </div>`;
   const ahora=new Date().toLocaleDateString('es-EC',{timeZone:'America/Guayaquil'});
   const colH='#1a0533';const rowAlt='#f1f5f9';
   // horas table rows
@@ -1913,7 +1923,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     <!-- HEADER -->
     <div style="background:${colH};color:#fff;padding:20px 28px;display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:14px">
-        <img src="${logo}" style="width:60px;height:60px;border-radius:50%;border:2.5px solid rgba(232,121,249,0.8);box-shadow:0 0 14px rgba(168,85,247,0.6),0 0 0 4px rgba(168,85,247,0.15)" alt="CJ"/>
+        ${logoHTML}
         <div>
           <div style="font-size:20px;font-weight:800;letter-spacing:0.05em">CUADRILLA JESSICA</div>
           <div style="font-size:11px;opacity:0.75;letter-spacing:0.08em">SISTEMA DE PRODUCCIÓN </div>
