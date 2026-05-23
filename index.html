@@ -600,6 +600,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <div style="display:flex;gap:8px">
           <input id="iamod-ced" type="text" inputmode="numeric" placeholder="0912345678"
             oninput="iaAutoFill(this.value)"
+            onblur="_normField(this,'ced')"
             style="flex:1;padding:9px 12px;background:#120330;border:1.5px solid #2d0a5e;border-radius:7px;color:#e0f2fe;font-family:var(--mo);font-size:0.92rem;outline:none"
             onkeydown="if(event.key==='Enter')document.getElementById('iamod-cel').focus()"/>
           <div id="iamod-lookup-icon" style="display:none;align-items:center;padding:0 10px;color:#22c55e;font-size:1.1rem">✓</div>
@@ -620,6 +621,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <div>
           <label style="font-size:0.7rem;color:#d8b4fe;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:5px">📱 Celular</label>
           <input id="iamod-cel" type="tel" inputmode="numeric" placeholder="0987654321"
+            onblur="_normField(this,'tel')"
             style="width:100%;padding:9px 12px;background:#120330;border:1.5px solid #2d0a5e;border-radius:7px;color:#e0f2fe;font-family:var(--mo);font-size:0.88rem;outline:none;box-sizing:border-box"/>
         </div>
         <div>
@@ -666,6 +668,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
           <div>
             <label style="font-size:0.68rem;color:#94a3b8;display:block;margin-bottom:4px">Cédula propietario</label>
             <input id="iamod-cprop" type="text" placeholder="0912345678" inputmode="numeric"
+              onblur="_normField(this,'ced')"
               style="width:100%;padding:8px 10px;background:#120330;border:1.5px solid #2d0a5e;border-radius:6px;color:#e0f2fe;font-family:var(--mo);font-size:0.83rem;outline:none;box-sizing:border-box"/>
           </div>
         </div>
@@ -768,6 +771,21 @@ function fdtSort(v){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function hFmt(h){const hrs=Math.floor(h),min=Math.round((h-hrs)*60);return hrs+':'+String(min).padStart(2,'0')+'h';}
+
+/* ── _normField: agrega 0 inicial al salir del campo (blur) ─────────────── */
+function _normField(el, tipo){
+  var v=String(el.value||'').trim().replace(/\.0+$/,'').replace(/[^\d]/g,'');
+  if(!v) return;
+  if(tipo==='ced'){
+    // Cédula/RUC: 10 dígitos (o 13 para RUC)
+    if(v.length===9)  v='0'+v;
+    if(v.length===12) v='0'+v;
+  } else if(tipo==='tel'){
+    // Celular Ecuador: 10 dígitos (09xxxxxxxx)
+    if(v.length===9) v='0'+v;
+  }
+  if(el.value!==v) el.value=v;
+}
 
 /* ══ INFO_ADICIONAL UI ════════════════════════════════════════════════════ */
 var _iaModCed = null; // cédula que está siendo editada en el modal
