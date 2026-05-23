@@ -305,7 +305,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <button class="tab"     onclick="st('p4',this)">🔍 Detalle</button>
     <button class="tab"     onclick="st('p5',this)">📊 Resumen</button>
     <button class="tab"     onclick="st('p6',this);renderHist();if(!loadHist().length)cargarDesdeSheets(true)">📚 Historial</button>
-    <button class="tab"     onclick="st('p7',this);renderInfoAdicional()">👤 Adicional</button>
+    <button class="tab"     onclick="st('p7',this);renderInfoAdicional()">👤 Info Adicional</button>
   </div>
   <div class="cnt">
 
@@ -414,7 +414,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <div id="p5" class="pane">
       <div class="mrow">
         <div class="mc"><div class="mlb">Trabajadores</div><div class="mvl" style="color:var(--ac)" id="mn">—</div></div>
-        <div class="mc"><div class="mlb">SOPASE paga</div><div class="mvl" id="me">—</div></div>
+        <div class="mc"><div class="mlb">CUADRILLA JESSICA paga</div><div class="mvl" id="me">—</div></div>
         <div class="mc"><div class="mlb">Tú pagas (bruto)</div><div class="mvl" style="color:var(--am)" id="mt">—</div></div>
         <div class="mc"><div class="mlb">Tu margen</div><div class="mvl" style="color:var(--gr)" id="mm">—</div><div class="msu" id="mp"></div></div>
       </div>
@@ -554,71 +554,142 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     </div>
   </div>
 
-    <!-- TAB 7: INFO ADICIONAL -->
+    <!-- TAB 7: INFORMACIÓN ADICIONAL -->
     <div id="p7" class="pane">
       <div class="card">
-        <div class="ctit">👤 INFO_ADICIONAL — Datos bancarios y celular</div>
-        <div class="csub">Registros cargados desde Google Sheet. Aquí puedes ver y agregar cédulas con banco, cuenta y celular. Se usan automáticamente en los roles.</div>
-        <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:6px;padding:8px 12px;font-size:0.72rem;color:var(--am);margin-bottom:10px">
-          ⚠ Para guardar nuevos registros en Sheets, agrega la acción <code style="background:rgba(0,0,0,0.2);padding:1px 4px;border-radius:3px">upsert_info_adicional</code> al CODEX.gs.
-          <button onclick="document.getElementById('codex-snip').style.display=document.getElementById('codex-snip').style.display==='none'?'block':'none'" style="margin-left:8px;font-size:0.7rem;padding:2px 8px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:4px;color:var(--am);cursor:pointer">Ver código GS</button>
-        </div>
-        <div id="codex-snip" style="display:none;background:#0f0520;border:1px solid rgba(168,85,247,0.2);border-radius:6px;padding:12px;margin-bottom:10px;font-size:0.72rem">
-          <div style="color:var(--tx2);margin-bottom:6px">Agrega esto en <code style="color:var(--ac)">doPost(e)</code> del CODEX.gs, antes del último <code style="color:var(--am)">return okResp();</code>:</div>
-          <pre style="color:#c084fc;font-family:monospace;font-size:0.68rem;white-space:pre-wrap;margin:0;overflow-x:auto">if (data.action === 'upsert_info_adicional') {
-  var shIA = ss.getSheetByName('INFO_ADICIONAL');
-  if (!shIA) return errResp('Hoja INFO_ADICIONAL no encontrada');
-  var vIA = shIA.getDataRange().getValues();
-  var hIA = vIA[0].map(function(x){return String(x).toUpperCase().replace(/[^A-Z0-9]/g,'');});
-  var iCed=hIA.findIndex(function(h){return h.indexOf('CEDULA')>=0;});
-  var iBan=hIA.findIndex(function(h){return h==='BANCO';});
-  var iTip=hIA.findIndex(function(h){return h.indexOf('TIPO')>=0;});
-  var iCta=hIA.findIndex(function(h){return h.indexOf('CUENTA')>=0&amp;&amp;h!==hIA[iCed||0];});
-  var iCel=hIA.findIndex(function(h){return h==='CELULAR';});
-  var iNPr=hIA.findIndex(function(h){return h.indexOf('NOMBRE')>=0&amp;&amp;h.indexOf('PROP')>=0;});
-  if(iCed&lt;0)iCed=0;
-  var found=-1;
-  for(var ia=1;ia&lt;vIA.length;ia++){
-    if(fmtCedula(vIA[ia][iCed])===fmtCedula(data.cedula)){found=ia;break;}
-  }
-  var setC=function(row,col,val){if(col>=0)shIA.getRange(row+1,col+1).setValue(val||'');};
-  if(found>=0){
-    setC(found,iBan,data.banco);setC(found,iTip,data.tipo_cuenta);
-    setC(found,iCta,data.cuenta_banco);setC(found,iCel,data.celular);
-    setC(found,iNPr,data.nombre_prop);
-  } else {
-    var nr=new Array(shIA.getLastColumn()).fill('');
-    if(iCed>=0)nr[iCed]=data.cedula;if(iBan>=0)nr[iBan]=data.banco||'';
-    if(iTip>=0)nr[iTip]=data.tipo_cuenta||'';if(iCta>=0)nr[iCta]=data.cuenta_banco||'';
-    if(iCel>=0)nr[iCel]=data.celular||'';if(iNPr>=0)nr[iNPr]=data.nombre_prop||'';
-    shIA.appendRow(nr);
-  }
-  return okResp({action:'upsert_ok'});
-}</pre>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-          <input id="ia-search" type="text" placeholder="🔍 Buscar por cédula, banco..." oninput="renderInfoAdicional()" style="flex:1;min-width:160px;padding:7px 10px;background:var(--bg2);border:1px solid var(--brd);border-radius:6px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none"/>
-          <button onclick="showAddIA()" style="padding:7px 14px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border:none;border-radius:6px;font-family:var(--fn);font-size:0.82rem;cursor:pointer;font-weight:600">+ Nuevo</button>
-        </div>
-        <div id="ia-form" style="display:none;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:14px;margin-bottom:12px">
-          <div style="font-size:0.82rem;font-weight:600;color:var(--ac);margin-bottom:10px" id="ia-form-title">➕ Nuevo registro</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Cédula/RUC *</div><input id="ia-ced" type="text" placeholder="0912345678" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
-            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">📱 Celular</div><input id="ia-cel" type="tel" placeholder="0987654321" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
-            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Banco</div><input id="ia-banco" type="text" placeholder="Banco Pichincha" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
-            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Tipo cuenta</div><select id="ia-tipo" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none"><option>AHORROS</option><option>CORRIENTE</option></select></div>
-            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Nº Cuenta</div><input id="ia-ncuenta" type="text" placeholder="2201234567" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
-            <div><div style="font-size:0.68rem;color:var(--tx2);margin-bottom:3px">Nombre propietario</div><input id="ia-nprop" type="text" placeholder="(si cuenta es prestada)" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--brd);border-radius:5px;color:var(--tx);font-family:var(--fn);font-size:0.82rem;outline:none;box-sizing:border-box"/></div>
+        <!-- Header -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+          <div>
+            <div class="ctit" style="font-size:1rem">👤 Información Adicional</div>
+            <div class="csub" style="margin-bottom:0">Datos bancarios, celular y propietario de cuenta. Se usan automáticamente en los roles y WhatsApp.</div>
           </div>
-          <div style="display:flex;gap:8px">
-            <button onclick="saveIA()" style="flex:1;padding:8px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border:none;border-radius:6px;font-family:var(--fn);font-size:0.82rem;cursor:pointer;font-weight:600">💾 Guardar</button>
-            <button onclick="document.getElementById('ia-form').style.display='none'" style="padding:8px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:6px;color:var(--tx2);font-family:var(--fn);font-size:0.82rem;cursor:pointer">Cancelar</button>
-          </div>
+          <button onclick="openModalIA(null)" style="padding:9px 18px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border:none;border-radius:8px;font-family:var(--fn);font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px">
+            ➕ Nuevo registro
+          </button>
         </div>
-        <div id="ia-list" style="font-size:0.82rem"><div style="color:var(--tx3);padding:1rem">Cargando...</div></div>
+        <!-- Stats + Search -->
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+          <input id="ia-search" type="text" placeholder="🔍 Buscar cédula, nombre, banco..."
+            oninput="renderInfoAdicional()"
+            style="flex:1;min-width:180px;padding:8px 12px;background:var(--bg3);border:1px solid var(--brd2);border-radius:8px;color:var(--tx);font-family:var(--fn);font-size:0.83rem;outline:none"/>
+          <div id="ia-stats" style="font-size:0.72rem;color:var(--tx3);font-family:var(--mo);white-space:nowrap"></div>
+        </div>
+        <!-- Table -->
+        <div id="ia-list" style="font-size:0.82rem"><div style="color:var(--tx3);padding:2rem;text-align:center">Cargando...</div></div>
       </div>
     </div>
   </div>
+
+<!-- ═══ MODAL INFO ADICIONAL ═══ -->
+<div id="iamod-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:500;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeModalIA()">
+  <div style="background:#110825;border:1px solid #3b0d6e;border-radius:14px;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.7)">
+    <!-- Modal header -->
+    <div style="background:#1a0533;border-bottom:1px solid #4c0a82;padding:16px 20px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div id="iamod-title" style="font-size:0.95rem;font-weight:700;color:#e0f2fe">➕ Nuevo registro</div>
+        <div id="iamod-sub" style="font-size:0.75rem;color:#d8b4fe;margin-top:2px"></div>
+      </div>
+      <button onclick="closeModalIA()" style="background:#ef4444;border:none;color:#fff;font-size:0.75rem;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:var(--fn)">✕ Cerrar</button>
+    </div>
+    <!-- Modal body -->
+    <div style="overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px">
+
+      <!-- Cédula con lookup -->
+      <div>
+        <label style="font-size:0.7rem;color:#d8b4fe;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:5px">Cédula / RUC *</label>
+        <div style="display:flex;gap:8px">
+          <input id="iamod-ced" type="text" inputmode="numeric" placeholder="0912345678"
+            oninput="iaAutoFill(this.value)"
+            style="flex:1;padding:9px 12px;background:#120330;border:1.5px solid #2d0a5e;border-radius:7px;color:#e0f2fe;font-family:var(--mo);font-size:0.92rem;outline:none"
+            onkeydown="if(event.key==='Enter')document.getElementById('iamod-cel').focus()"/>
+          <div id="iamod-lookup-icon" style="display:none;align-items:center;padding:0 10px;color:#22c55e;font-size:1.1rem">✓</div>
+        </div>
+        <div id="iamod-found" style="font-size:0.75rem;color:#4ade80;margin-top:4px;min-height:16px"></div>
+      </div>
+
+      <!-- Nombre (read-only desde listado) -->
+      <div>
+        <label style="font-size:0.7rem;color:#d8b4fe;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:5px">Nombre del trabajador</label>
+        <div id="iamod-nombre-display" style="padding:9px 12px;background:rgba(255,255,255,0.04);border:1px solid #2d0a5e;border-radius:7px;color:#94a3b8;font-size:0.85rem;min-height:38px">
+          <span style="color:#454a5a;font-style:italic">Se completa automáticamente desde el Listado</span>
+        </div>
+      </div>
+
+      <!-- Celular + Sector -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:0.7rem;color:#d8b4fe;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:5px">📱 Celular</label>
+          <input id="iamod-cel" type="tel" inputmode="numeric" placeholder="0987654321"
+            style="width:100%;padding:9px 12px;background:#120330;border:1.5px solid #2d0a5e;border-radius:7px;color:#e0f2fe;font-family:var(--mo);font-size:0.88rem;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <label style="font-size:0.7rem;color:#d8b4fe;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:5px">🏘 Sector</label>
+          <input id="iamod-sector" type="text" placeholder="LOCAL / RURAL..."
+            style="width:100%;padding:9px 12px;background:#120330;border:1.5px solid #2d0a5e;border-radius:7px;color:#e0f2fe;font-family:var(--fn);font-size:0.85rem;outline:none;box-sizing:border-box"/>
+        </div>
+      </div>
+
+      <!-- Divider banco -->
+      <div style="border-top:1px solid #2d0a5e;padding-top:14px">
+        <div style="font-size:0.7rem;color:#d8b4fe;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">🏦 Datos bancarios</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:0.68rem;color:#94a3b8;display:block;margin-bottom:4px">Banco</label>
+            <input id="iamod-banco" type="text" placeholder="Banco Pichincha"
+              style="width:100%;padding:8px 10px;background:#120330;border:1.5px solid #2d0a5e;border-radius:6px;color:#e0f2fe;font-family:var(--fn);font-size:0.83rem;outline:none;box-sizing:border-box"/>
+          </div>
+          <div>
+            <label style="font-size:0.68rem;color:#94a3b8;display:block;margin-bottom:4px">Tipo de cuenta</label>
+            <select id="iamod-tipo" style="width:100%;padding:8px 10px;background:#120330;border:1.5px solid #2d0a5e;border-radius:6px;color:#e0f2fe;font-family:var(--fn);font-size:0.83rem;outline:none">
+              <option value="">— Sin cuenta —</option>
+              <option value="AHORROS">AHORROS</option>
+              <option value="CORRIENTE">CORRIENTE</option>
+            </select>
+          </div>
+          <div style="grid-column:span 2">
+            <label style="font-size:0.68rem;color:#94a3b8;display:block;margin-bottom:4px">N° de Cuenta</label>
+            <input id="iamod-ncuenta" type="text" placeholder="2201234567"
+              style="width:100%;padding:8px 10px;background:#120330;border:1.5px solid #2d0a5e;border-radius:6px;color:#e0f2fe;font-family:var(--mo);font-size:0.88rem;outline:none;box-sizing:border-box"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cuenta prestada -->
+      <div style="border-top:1px solid #2d0a5e;padding-top:14px">
+        <div style="font-size:0.7rem;color:#d8b4fe;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">👤 Propietario (si cuenta es prestada)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:0.68rem;color:#94a3b8;display:block;margin-bottom:4px">Nombre propietario</label>
+            <input id="iamod-nprop" type="text" placeholder="Dejar vacío si cuenta propia"
+              style="width:100%;padding:8px 10px;background:#120330;border:1.5px solid #2d0a5e;border-radius:6px;color:#e0f2fe;font-family:var(--fn);font-size:0.83rem;outline:none;box-sizing:border-box"/>
+          </div>
+          <div>
+            <label style="font-size:0.68rem;color:#94a3b8;display:block;margin-bottom:4px">Cédula propietario</label>
+            <input id="iamod-cprop" type="text" placeholder="0912345678" inputmode="numeric"
+              style="width:100%;padding:8px 10px;background:#120330;border:1.5px solid #2d0a5e;border-radius:6px;color:#e0f2fe;font-family:var(--mo);font-size:0.83rem;outline:none;box-sizing:border-box"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aprobación -->
+      <div style="display:flex;align-items:center;gap:12px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:10px 14px">
+        <label style="font-size:0.82rem;color:#d8b4fe;flex:1">✅ Aprobado para transferencia</label>
+        <select id="iamod-apro" style="padding:6px 10px;background:#120330;border:1px solid #2d0a5e;border-radius:6px;color:#e0f2fe;font-family:var(--fn);font-size:0.82rem;outline:none">
+          <option value="">No aprobado</option>
+          <option value="SI">SI — Aprobado</option>
+          <option value="NO">NO — Rechazado</option>
+        </select>
+      </div>
+
+    </div>
+    <!-- Modal footer -->
+    <div style="background:#0a0520;border-top:1px solid #2d0a5e;padding:14px 20px;display:flex;gap:10px">
+      <button onclick="saveModalIA()" style="flex:2;padding:11px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border:none;border-radius:8px;font-family:var(--fn);font-size:0.88rem;font-weight:700;cursor:pointer">💾 Guardar</button>
+      <button id="iamod-del-btn" onclick="deleteIA()" style="display:none;flex:1;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:var(--re);font-family:var(--fn);font-size:0.88rem;font-weight:600;cursor:pointer">🗑 Eliminar</button>
+      <button onclick="closeModalIA()" style="flex:1;padding:11px;background:rgba(255,255,255,0.05);border:1px solid var(--brd2);border-radius:8px;color:var(--tx2);font-family:var(--fn);font-size:0.88rem;cursor:pointer">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ DIV OCULTO PARA PDF ═══ -->
 <div id="pdf-wrap" style="position:fixed;left:-9999px;top:0;width:794px;background:#fff;z-index:-1"></div>
@@ -636,10 +707,10 @@ const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbzVe6A0bq5wV9D6c1fv
 
 function getAPI(){
   // Prioridad: 1) DEFAULT_API en el archivo, 2) URL guardada en localStorage
-  return DEFAULT_API || localStorage.getItem('sap_api_url') || '';
+  return DEFAULT_API || localStorage.getItem('cj_api_url') || '';
 }
 function setAPI(url){
-  if(url && url.trim()) localStorage.setItem('sap_api_url', url.trim());
+  if(url && url.trim()) localStorage.setItem('cj_api_url', url.trim());
 }
 Object.defineProperty(window,'API',{get:function(){return DEFAULT_API;}});
 let   USERS = [];      // usuarios cargados desde la hoja USUARIOS
@@ -649,7 +720,7 @@ const _nt = 'palma_gye_x7k2';
 // ── Cargar URL guardada al iniciar ────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', function(){
   // Auto-restore API URL: DEFAULT_API del archivo, o guardada en localStorage
-  if(DEFAULT_API) localStorage.setItem('sap_api_url', DEFAULT_API);
+  if(DEFAULT_API) localStorage.setItem('cj_api_url', DEFAULT_API);
   // ── Restaurar caché local (carga instantánea) ───────────────────────
   try{
     var _cc=JSON.parse(localStorage.getItem('cj_cache')||'null');
@@ -663,7 +734,7 @@ window.addEventListener('DOMContentLoaded', function(){
     }
   }catch(e){}
   // FIX: aviso si no hay URL configurada en ningún lado
-  if(!DEFAULT_API && !localStorage.getItem('sap_api_url')){
+  if(!DEFAULT_API && !localStorage.getItem('cj_api_url')){
     const le=$d('le');
     if(le){le.style.color='#f59e0b';le.innerHTML='⚠ URL del Apps Script no configurada.<br><small style="color:#64748b">Edita <code>const DEFAULT_API = \'tu-url\';</code> en el index.html</small>';}
   }
@@ -696,77 +767,286 @@ function fdtSort(v){
 function hFmt(h){const hrs=Math.floor(h),min=Math.round((h-hrs)*60);return hrs+':'+String(min).padStart(2,'0')+'h';}
 
 /* ══ INFO_ADICIONAL UI ════════════════════════════════════════════════════ */
+var _iaModCed = null; // cédula que está siendo editada en el modal
+
 function renderInfoAdicional(){
   var q=(document.getElementById('ia-search')||{value:''}).value.toLowerCase().trim();
-  var list=IA||[];
-  if(q) list=list.filter(function(x){
+  var all=IA||[];
+  var list=q?all.filter(function(x){
+    var nom=_getNombreFromListado(x.cedula).toLowerCase();
     return (x.cedula||'').includes(q)||(x.banco||'').toLowerCase().includes(q)||
-           (x.nombre_prop||'').toLowerCase().includes(q)||(x.cuenta_banco||'').includes(q);
-  });
+           (x.nombre_prop||'').toLowerCase().includes(q)||(x.cuenta_banco||'').includes(q)||
+           nom.includes(q);
+  }):all;
+
+  var st=document.getElementById('ia-stats');
+  if(st) st.textContent=list.length+' / '+all.length+' registros';
+
   var el=document.getElementById('ia-list');
-  if(!el)return;
-  if(!list.length){el.innerHTML='<div style="color:var(--tx3);padding:1rem">Sin registros'+(q?' para "'+q+'"':'')+'</div>';return;}
-  el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.78rem">'
-    +'<thead><tr style="background:rgba(168,85,247,0.12);font-size:0.65rem;text-transform:uppercase;color:var(--tx2)">'
-    +'<th style="padding:8px">Cédula</th><th style="padding:8px">Banco</th><th style="padding:8px">Tipo</th>'
-    +'<th style="padding:8px">N° Cuenta</th><th style="padding:8px">📱 Celular</th><th style="padding:8px">Propietario</th></tr></thead>'
-    +'<tbody>'
+  if(!el) return;
+  if(!list.length){
+    el.innerHTML='<div style="color:var(--tx3);padding:2rem;text-align:center">'
+      +(q?'Sin resultados para "'+q+'"':'Sin registros. Usa ➕ Nuevo registro para agregar.')+'</div>';
+    return;
+  }
+
+  var thS='padding:9px 10px;text-align:left;font-weight:500;color:var(--tx2);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--brd);background:var(--bg3)';
+  el.innerHTML='<div style="overflow-x:auto;border-radius:8px;border:1px solid var(--brd)">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:0.78rem">'
+    +'<thead><tr>'
+    +'<th style="'+thS+'">Cédula</th>'
+    +'<th style="'+thS+'">Nombre</th>'
+    +'<th style="'+thS+'">📱 Celular</th>'
+    +'<th style="'+thS+'">Banco</th>'
+    +'<th style="'+thS+'">N° Cuenta</th>'
+    +'<th style="'+thS+'">Propietario</th>'
+    +'<th style="'+thS+'">Estado</th>'
+    +'<th style="'+thS+'">Acciones</th>'
+    +'</tr></thead><tbody>'
     +list.map(function(ia,i){
-      return '<tr style="border-bottom:1px solid var(--brd);'+(i%2?'background:rgba(255,255,255,0.02)':'')+'">'
-        +'<td style="padding:7px 8px;font-family:var(--mo);color:var(--ac)">'+ia.cedula+'</td>'
-        +'<td style="padding:7px 8px;color:var(--tx)">'+( ia.banco||'—')+'</td>'
-        +'<td style="padding:7px 8px;color:var(--tx2)">'+( ia.tipo_cuenta||'—')+'</td>'
-        +'<td style="padding:7px 8px;font-family:var(--mo)">'+( ia.cuenta_banco||'—')+'</td>'
-        +'<td style="padding:7px 8px;color:#4ade80;font-family:var(--mo)">'+( ia.celular||'—')+'</td>'
-        +'<td style="padding:7px 8px;font-size:0.72rem;color:var(--tx2)">'+( ia.nombre_prop||'—')+'</td>'
+      var nom=_getNombreFromListado(ia.cedula);
+      var apro=(ia.aprobacion||'').toUpperCase();
+      var tieneCtaBadge=ia.cuenta_banco
+        ?(apro==='SI'
+          ?'<span style="background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.3);padding:2px 7px;border-radius:10px;font-size:0.63rem;font-weight:600">✓ Aprobado</span>'
+          :'<span style="background:rgba(245,158,11,0.1);color:#fbbf24;border:1px solid rgba(245,158,11,0.25);padding:2px 7px;border-radius:10px;font-size:0.63rem">Con cuenta</span>')
+        :'<span style="background:rgba(255,255,255,0.04);color:var(--tx3);padding:2px 7px;border-radius:10px;font-size:0.63rem">Sin cuenta</span>';
+      var sk=ia.cedula.replace(/'/g,'__q__');
+      return '<tr style="border-bottom:1px solid var(--brd);'+(i%2?'background:rgba(255,255,255,0.015)':'')+'">'
+        +'<td style="padding:8px 10px;font-family:var(--mo);color:var(--ac);white-space:nowrap">'+ia.cedula+'</td>'
+        +'<td style="padding:8px 10px;color:var(--tx);font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+nom+'">'+( nom||'<span style="color:var(--tx3)">—</span>')+'</td>'
+        +'<td style="padding:8px 10px;color:#4ade80;font-family:var(--mo);white-space:nowrap">'+(ia.celular||'<span style="color:var(--tx3)">—</span>')+'</td>'
+        +'<td style="padding:8px 10px;color:var(--tx);white-space:nowrap">'+(ia.banco||'<span style="color:var(--tx3)">—</span>')+'</td>'
+        +'<td style="padding:8px 10px;font-family:var(--mo);white-space:nowrap">'+(ia.cuenta_banco||'<span style="color:var(--tx3)">—</span>')+'</td>'
+        +'<td style="padding:8px 10px;font-size:0.73rem;color:var(--tx2);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(ia.nombre_prop||'<span style="color:var(--tx3)">Titular propio</span>')+'</td>'
+        +'<td style="padding:8px 10px">'+tieneCtaBadge+'</td>'
+        +'<td style="padding:8px 10px;white-space:nowrap">'
+          +'<button onclick="openModalIA(\''+sk+'\')" style="padding:4px 10px;font-size:0.72rem;background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.25);border-radius:5px;color:var(--ac);cursor:pointer;font-family:var(--fn);font-weight:600;margin-right:4px">✏ Editar</button>'
+        +'</td>'
         +'</tr>';
     }).join('')
     +'</tbody></table></div>';
 }
 
-function showAddIA(){
-  var f=document.getElementById('ia-form');
-  if(!f)return;
-  f.style.display='block';
-  ['ia-ced','ia-cel','ia-banco','ia-ncuenta','ia-nprop'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.value='';
-  });
-  document.getElementById('ia-form-title').textContent='➕ Nuevo registro';
-  document.getElementById('ia-ced').focus();
+function _getNombreFromListado(ced){
+  if(!ced) return '';
+  var c=normCed(ced);
+  var li=LIST_MAP[c]||LIST_MAP[ced]||null;
+  if(li&&li.nombre) return li.nombre;
+  // Buscar en lista lineal
+  for(var i=0;i<LIST.length;i++){
+    if(normCed(LIST[i].cedula)===c) return LIST[i].nombre||'';
+  }
+  return '';
 }
 
-function saveIA(){
-  var ced=(document.getElementById('ia-ced').value||'').trim();
-  if(!ced){toast('⚠ Cédula requerida');return;}
-  var cel=(document.getElementById('ia-cel').value||'').trim();
-  var banco=(document.getElementById('ia-banco').value||'').trim();
-  var tipo=(document.getElementById('ia-tipo').value||'AHORROS');
-  var ncuenta=(document.getElementById('ia-ncuenta').value||'').trim();
-  var nprop=(document.getElementById('ia-nprop').value||'').trim();
-  // Update local IA array
-  var existing=IA.findIndex(function(x){return x.cedula===ced;});
-  var obj={cedula:ced,banco:banco,tipo_cuenta:tipo,cuenta_banco:ncuenta,celular:cel,nombre_prop:nprop,ced_prop:'',aprobacion:''};
-  if(existing>=0){IA[existing]=obj;}else{IA.push(obj);}
-  // Update IA_MAP and LIST_MAP with celular
-  IA_MAP[ced]=obj;
-  // Also update LIST_MAP celular if exists
-  if(LIST_MAP[ced]) LIST_MAP[ced].celular=cel;
-  // Save to Sheets via a generic upsert (write to INFO_ADICIONAL sheet)
+// ── Modal abrir ──────────────────────────────────────────────────────────────
+function openModalIA(safeCed){
+  var bg=document.getElementById('iamod-bg');
+  if(!bg) return;
+  _iaModCed=null;
+
+  // Limpiar campos
+  ['iamod-ced','iamod-cel','iamod-sector','iamod-banco','iamod-ncuenta','iamod-nprop','iamod-cprop'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('iamod-tipo').value='';
+  document.getElementById('iamod-apro').value='';
+  document.getElementById('iamod-found').textContent='';
+  document.getElementById('iamod-lookup-icon').style.display='none';
+  document.getElementById('iamod-nombre-display').innerHTML='<span style="color:#454a5a;font-style:italic">Se completa automáticamente desde el Listado</span>';
+
+  if(safeCed){
+    // Modo edición
+    var ced=safeCed.replace(/__q__/g,"'");
+    var c=normCed(ced);
+    var ia=IA_MAP[c]||IA_MAP[ced]||IA.find(function(x){return normCed(x.cedula)===c;})||null;
+    if(!ia){toast('Registro no encontrado');return;}
+    _iaModCed=ia.cedula;
+    document.getElementById('iamod-ced').value=ia.cedula;
+    document.getElementById('iamod-ced').readOnly=true;
+    document.getElementById('iamod-ced').style.opacity='0.6';
+    document.getElementById('iamod-cel').value=ia.celular||'';
+    document.getElementById('iamod-banco').value=ia.banco||'';
+    document.getElementById('iamod-tipo').value=ia.tipo_cuenta||'';
+    document.getElementById('iamod-ncuenta').value=ia.cuenta_banco||'';
+    document.getElementById('iamod-nprop').value=ia.nombre_prop||'';
+    document.getElementById('iamod-cprop').value=ia.ced_prop||'';
+    document.getElementById('iamod-apro').value=ia.aprobacion||'';
+    // Sector desde listado
+    var li=LIST_MAP[c]||LIST_MAP[ced];
+    document.getElementById('iamod-sector').value=(li&&li.sector)||'';
+    document.getElementById('iamod-title').textContent='✏ Editar registro';
+    document.getElementById('iamod-sub').textContent='Cédula: '+ia.cedula;
+    document.getElementById('iamod-del-btn').style.display='block';
+    // Nombre
+    var nom=_getNombreFromListado(ia.cedula);
+    document.getElementById('iamod-nombre-display').innerHTML=nom
+      ?'<strong style="color:#e0f2fe">'+nom+'</strong>'
+      :'<span style="color:#454a5a;font-style:italic">No encontrado en el Listado</span>';
+    if(nom) document.getElementById('iamod-lookup-icon').style.display='flex';
+  } else {
+    // Modo nuevo
+    document.getElementById('iamod-ced').readOnly=false;
+    document.getElementById('iamod-ced').style.opacity='1';
+    document.getElementById('iamod-title').textContent='➕ Nuevo registro';
+    document.getElementById('iamod-sub').textContent='Ingresa la cédula para buscar en el Listado';
+    document.getElementById('iamod-del-btn').style.display='none';
+  }
+
+  bg.style.display='flex';
+  setTimeout(function(){
+    var cedEl=document.getElementById('iamod-ced');
+    if(cedEl&&!safeCed) cedEl.focus();
+  },100);
+}
+
+function closeModalIA(){
+  var bg=document.getElementById('iamod-bg');
+  if(bg) bg.style.display='none';
+  _iaModCed=null;
+}
+
+// ── Auto-fill desde Listado al escribir cédula ───────────────────────────────
+var _iaFillTimer=null;
+function iaAutoFill(val){
+  clearTimeout(_iaFillTimer);
+  _iaFillTimer=setTimeout(function(){
+    _doIaAutoFill(val);
+  }, 400);
+}
+
+function _doIaAutoFill(val){
+  var raw=String(val||'').trim().replace(/\.0+$/,'');
+  // Agregar 0 si tiene 9 dígitos
+  if(/^\d{9}$/.test(raw)) raw='0'+raw;
+  if(!raw) return;
+
+  var foundEl=document.getElementById('iamod-found');
+  var iconEl=document.getElementById('iamod-lookup-icon');
+  var nomEl=document.getElementById('iamod-nombre-display');
+
+  // 1. ¿Ya existe en IA?
+  var c=normCed(raw);
+  var iaExist=IA_MAP[c]||IA_MAP[raw]||IA.find(function(x){return normCed(x.cedula)===c;})||null;
+  if(iaExist){
+    foundEl.innerHTML='<span style="color:#fbbf24">⚠ Ya existe — los campos se rellenan para editar</span>';
+    // Pre-fill IA fields
+    document.getElementById('iamod-cel').value=document.getElementById('iamod-cel').value||iaExist.celular||'';
+    document.getElementById('iamod-banco').value=document.getElementById('iamod-banco').value||iaExist.banco||'';
+    document.getElementById('iamod-tipo').value=iaExist.tipo_cuenta||'';
+    document.getElementById('iamod-ncuenta').value=document.getElementById('iamod-ncuenta').value||iaExist.cuenta_banco||'';
+    document.getElementById('iamod-nprop').value=document.getElementById('iamod-nprop').value||iaExist.nombre_prop||'';
+    document.getElementById('iamod-cprop').value=document.getElementById('iamod-cprop').value||iaExist.ced_prop||'';
+    document.getElementById('iamod-apro').value=iaExist.aprobacion||'';
+  }
+
+  // 2. Buscar en LISTADO
+  var li=LIST_MAP[c]||LIST_MAP[raw]||null;
+  if(!li){
+    // Linear search fallback
+    for(var i=0;i<LIST.length;i++){
+      if(normCed(LIST[i].cedula)===c){li=LIST[i];break;}
+    }
+  }
+
+  if(li){
+    var nom=li.nombre||'';
+    nomEl.innerHTML=nom
+      ?'<strong style="color:#e0f2fe">'+nom+'</strong>'
+        +(li.cargo?'<span style="color:#d8b4fe;font-size:0.73rem"> · '+li.cargo+'</span>':'')
+        +(li.sector?'<span style="color:#94a3b8;font-size:0.73rem"> · '+li.sector+'</span>':'')
+      :'<span style="color:#454a5a;font-style:italic">Sin nombre en listado</span>';
+    iconEl.style.display='flex';
+    // Auto-fill celular y sector solo si están vacíos
+    if(!document.getElementById('iamod-cel').value && li.celular)
+      document.getElementById('iamod-cel').value=li.celular;
+    if(!document.getElementById('iamod-sector').value && li.sector)
+      document.getElementById('iamod-sector').value=li.sector;
+    if(!iaExist)
+      foundEl.innerHTML='<span style="color:#4ade80">✓ Encontrado en el Listado</span>';
+  } else if(!iaExist) {
+    nomEl.innerHTML='<span style="color:#454a5a;font-style:italic">No encontrado en el Listado — puedes registrar igual</span>';
+    iconEl.style.display='none';
+    foundEl.innerHTML='';
+  }
+}
+
+// ── Guardar desde modal ───────────────────────────────────────────────────────
+function saveModalIA(){
+  var cedRaw=(document.getElementById('iamod-ced').value||'').trim().replace(/\.0+$/,'');
+  if(/^\d{9}$/.test(cedRaw)) cedRaw='0'+cedRaw;
+  if(/^\d{12}$/.test(cedRaw)) cedRaw='0'+cedRaw;
+  if(!cedRaw){toast('⚠ La cédula es obligatoria');return;}
+
+  var cel=(document.getElementById('iamod-cel').value||'').trim().replace(/\.0+$/,'');
+  if(/^\d{9}$/.test(cel)) cel='0'+cel;
+  var banco=(document.getElementById('iamod-banco').value||'').trim();
+  var tipo=(document.getElementById('iamod-tipo').value||'').trim();
+  var ncuenta=(document.getElementById('iamod-ncuenta').value||'').trim();
+  var nprop=(document.getElementById('iamod-nprop').value||'').trim();
+  var cprop=(document.getElementById('iamod-cprop').value||'').trim().replace(/\.0+$/,'');
+  if(/^\d{9}$/.test(cprop)) cprop='0'+cprop;
+  var apro=(document.getElementById('iamod-apro').value||'').trim().toUpperCase();
+
+  var c=normCed(cedRaw);
+  var obj={cedula:c||cedRaw,banco:banco,tipo_cuenta:tipo,cuenta_banco:ncuenta,
+           celular:cel,nombre_prop:nprop,ced_prop:cprop,aprobacion:apro};
+
+  // Update local arrays
+  var idx=IA.findIndex(function(x){return normCed(x.cedula)===c||x.cedula===cedRaw;});
+  if(idx>=0){IA[idx]=obj;}else{IA.push(obj);}
+  IA_MAP[c||cedRaw]=obj;
+  if(LIST_MAP[c||cedRaw]) LIST_MAP[c||cedRaw].celular=cel;
+
+  // Update cache
+  try{
+    var _cc=JSON.parse(localStorage.getItem('cj_cache')||'{}');
+    if(_cc&&_cc.IA){_cc.IA=IA;localStorage.setItem('cj_cache',JSON.stringify(_cc));}
+  }catch(e){}
+
+  // Sync to Sheets
   var api=getAPI();
   if(api&&api.includes('script.google')){
     fetch(api,{method:'POST',body:JSON.stringify({action:'upsert_info_adicional',
-      cedula:ced,banco:banco,tipo_cuenta:tipo,cuenta_banco:ncuenta,celular:cel,nombre_prop:nprop})})
+      cedula:obj.cedula,banco:banco,tipo_cuenta:tipo,cuenta_banco:ncuenta,
+      celular:cel,nombre_prop:nprop,ced_prop:cprop,aprobacion:apro})})
       .then(function(r){return r.json();})
       .then(function(r){
-        if(r.ok){toast('✓ Guardado en Sheets');}
-        else{toast('✓ Guardado localmente (Sheets: '+r.error+')');}
+        toast(r.ok?'✓ Guardado en Sheets · '+obj.cedula:'✓ Local (Sheets: '+r.error+')');
       }).catch(function(){toast('✓ Guardado localmente');});
-  } else {
-    toast('✓ Guardado localmente (sin API)');
+  }else{
+    toast('✓ Guardado localmente');
   }
-  document.getElementById('ia-form').style.display='none';
+
+  closeModalIA();
   renderInfoAdicional();
 }
+
+// ── Eliminar registro ─────────────────────────────────────────────────────────
+function deleteIA(){
+  if(!_iaModCed){toast('Sin registro seleccionado');return;}
+  var ced=_iaModCed;
+  var c=normCed(ced);
+  var nom=_getNombreFromListado(ced)||ced;
+  if(!confirm('¿Eliminar el registro de '+nom+' ('+ced+') de INFO_ADICIONAL?\n\nEsto solo elimina los datos bancarios/celular, no al trabajador del Listado.')){return;}
+  // Remove from local
+  IA=IA.filter(function(x){return normCed(x.cedula)!==c&&x.cedula!==ced;});
+  delete IA_MAP[c]; delete IA_MAP[ced];
+  // Update cache
+  try{
+    var _cc2=JSON.parse(localStorage.getItem('cj_cache')||'{}');
+    if(_cc2&&_cc2.IA){_cc2.IA=IA;localStorage.setItem('cj_cache',JSON.stringify(_cc2));}
+  }catch(e){}
+  // Note: no delete action in codex.gs, so just local. Could add later.
+  closeModalIA();
+  renderInfoAdicional();
+  toast('✓ Eliminado localmente · '+nom);
+}
+
+// ── Compat: funciones antiguas que pueden llamarse desde otros sitios ────────
+function showAddIA(){ openModalIA(null); }
+function saveIA(){    saveModalIA();     }
 
 /* ══ CELULAR LOOKUP: desde IA y desde LISTADO ════════════════════════════ */
 function getCelularByCedula(ced){
@@ -914,7 +1194,6 @@ function login(){
       TF   = data.tarifa_expreso || [];
       FE   = data.feriados       || [];
       IA   = data.info_adicional || [];
-      IA_MAP={};IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
       IA_MAP={};
       IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
       LIST = data.listado        || [];
@@ -965,7 +1244,7 @@ function _doLogin(id, pw){
   CURR_USER = u;
   // Guardar sesión en localStorage (persiste al recargar)
   try{
-    localStorage.setItem('sap_session', JSON.stringify({
+    localStorage.setItem('cj_session', JSON.stringify({
       idempleado: u.idempleado, nombre: u.nombre,
       rol: u.rol||'', ts: Date.now()
     }));
@@ -992,7 +1271,7 @@ function logout(){
   CURR_USER=null; USERS=[];
   TH=[];TP=[];TF=[];FE=[];IA=[];LIST=[];
   det=[];dH=[];dA=[];overrides={};
-  try{localStorage.removeItem('sap_session');}catch(e){}
+  try{localStorage.removeItem('cj_session');}catch(e){}
   loaded={h:false,a:false};tarifasOk=false;
   $d('LS').style.display='flex';
   $d('AP').style.display='none';
@@ -1323,6 +1602,7 @@ function openRol(safeCed){
   if(w.descBancario>0){
     $d('rm-banc-row').style.display='block';
     const _tit2=w.nombreProp?w.nombreProp:w.nombre;
+    const _titLabel=w.nombreProp?'Prop.':'Titular';
     $d('rm-banc-lbl').textContent='🏦 '+w.banco+(w.tipoCuenta?' ('+w.tipoCuenta+')':'')+' · '+w.cuentaBanco+' · '+_titLabel+': '+_tit2;
     $d('rm-banc-val').textContent='-$'+w.descBancario.toFixed(2);
   } else $d('rm-banc-row').style.display='none';
@@ -1567,7 +1847,7 @@ async function rmPDF(){
     const filename=`ROL_${w.nombre.replace(/\s+/g,'_').substring(0,20)}_${ini}.pdf`;
     pdf.save(filename);
     // Upload to Drive
-    const driveFolderId=$d('drive-folder').value.trim();
+    const driveFolderId=($d('drive-folder')&&$d('drive-folder').value)||'1-LWtdRVKcaUReMrUlKjPyy1wd3G9A8rc';
     if(driveFolderId){
       toast('Subiendo a Google Drive...');
       const pdfBase64=pdf.output('datauristring').split(',')[1];
@@ -1636,7 +1916,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
         <img src="${logo}" style="width:60px;height:60px;border-radius:50%;border:2.5px solid rgba(232,121,249,0.8);box-shadow:0 0 14px rgba(168,85,247,0.6),0 0 0 4px rgba(168,85,247,0.15)" alt="CJ"/>
         <div>
           <div style="font-size:20px;font-weight:800;letter-spacing:0.05em">CUADRILLA JESSICA</div>
-          <div style="font-size:11px;opacity:0.75;letter-spacing:0.08em">SISTEMA DE PRODUCCIÓN · SOPASE</div>
+          <div style="font-size:11px;opacity:0.75;letter-spacing:0.08em">SISTEMA DE PRODUCCIÓN </div>
         </div>
       </div>
       <div style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:8px 16px;font-size:11px;font-weight:600;letter-spacing:0.05em">📋 COMPROBANTE DE PAGO</div>
@@ -1729,7 +2009,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     </div>
     <!-- FOOTER -->
     <div style="background:${colH};color:rgba(255,255,255,0.5);text-align:center;padding:8px;font-size:9px;letter-spacing:0.06em">
-      CUADRILLA JESSICA · Roles &nbsp;&nbsp;|&nbsp;&nbsp; Generado: ${ahora}
+      CUADRILLA JESSICA &nbsp;&nbsp;|&nbsp;&nbsp; Generado: ${ahora}
     </div>
   </div>`;
 }
@@ -1798,7 +2078,7 @@ function rmWA(){
   if(_dUrl) msg+='\n📄 *Comprobante PDF:* '+_dUrl+'\n';
   else msg+='\n_(PDF disponible al guardar en Drive)_\n';
   msg+=SEP+'\n';
-  msg+='_CUADRILLA JESSICA · Roles_';
+  msg+='_CUADRILLA JESSICA_';
   _waMsg=msg;
   _waTel=w.celular||'';
   $d('wbody').textContent=msg;
@@ -1846,7 +2126,7 @@ function guardarCierre(){
 }
 
 // ── Historial ─────────────────────────────────────────────────────────────────
-const HIST_KEY='sap_hist_v1';
+const HIST_KEY='cj_hist_v1';
 function loadHist(){try{return JSON.parse(localStorage.getItem(HIST_KEY)||'[]');}catch(e){return[];}}
 function saveHistData(d){localStorage.setItem(HIST_KEY,JSON.stringify(d));}
 
@@ -2263,7 +2543,7 @@ function exportarNomina(cierreId){
     var blob=new Blob([out],{type:'application/octet-stream'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
-    a.href=url; a.download='NOMINA_SOPASE_'+c.id+'.xlsx';
+    a.href=url; a.download='NOMINA_CUADRILLA JESSICA_'+c.id+'.xlsx';
     document.body.appendChild(a); a.click();
     setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},500);
     toast('Nomina: '+tAll.length+' total / '+tTransf.length+' transferencias / '+tEfect.length+' efectivo');
@@ -2302,9 +2582,11 @@ function svFer(inp){
 function svFerFecha(inp){
   var fi=parseInt(inp.dataset.fi),v=inp.value;
   var f=FE[fi]; if(!f) return;
+  var oldFecha=f.fecha; // guardar fecha anterior para que codex la encuentre
   f.fecha=v;
   inp.style.borderColor='#f59e0b';
-  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'update_feriado',id:f.id,fecha:v,extra_hora_pg:f.extra_hora_pg,extra_avance_pg:f.extra_avance_pg})})
+  // Enviamos id Y old_fecha para que el codex pueda encontrar la fila aunque la fecha cambie
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'update_feriado',id:f.id,fecha:oldFecha,new_fecha:v,extra_hora_pg:f.extra_hora_pg,extra_avance_pg:f.extra_avance_pg})})
     .then(function(r){return r.json();})
     .then(function(r){inp.style.borderColor=r.ok?'#22c55e':'#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);if(r.ok)toast('✓ Fecha feriado → '+v);})
     .catch(function(){inp.style.borderColor='#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);});
@@ -2360,6 +2642,8 @@ async function histWA(cierreId, safeKey){
   if(!c){toast('Cierre no encontrado');return;}
   const t=c.trabajadores.find(function(x){return (x.cedula||x.nombre)===safeKey;});
   if(!t){toast('Trabajador no encontrado');return;}
+  // Enriquecer celular desde IA_MAP si no viene en el historial
+  if(!t.celular&&IA_MAP){var _iaWA=IA_MAP[normCed(t.cedula)];if(_iaWA&&_iaWA.celular)t.celular=_iaWA.celular;}
 
   // If already has Drive URL → open WA directly
   if(t.drive_url){
@@ -2432,6 +2716,7 @@ async function histWA(cierreId, safeKey){
 }
 
 function _openWAWithData(t,c,driveUrl){
+  if(!t.celular&&IA_MAP){var _iaO=IA_MAP[normCed(t.cedula)];if(_iaO&&_iaO.celular)t.celular=_iaO.celular;}
   var neto=+(t.neto||0).toFixed(2);
   var bruto=+(t.bruto||t.total_tu||0).toFixed(2);
   var desc=+(t.total_desc||0).toFixed(2);
@@ -2456,7 +2741,7 @@ function _openWAWithData(t,c,driveUrl){
   msg+='💰 *NETO A PAGAR: $'+neto+'*\n';
   if(t.cuentaBanco||t.cuenta_banco) msg+='🏦 '+t.banco+' · '+(t.cuentaBanco||t.cuenta_banco)+'\n';
   if(driveUrl) msg+='\n📄 *Comprobante:* '+driveUrl+'\n';
-  msg+=SEP+'\n_CUADRILLA JESSICA · Roles_';
+  msg+=SEP+'\n_CUADRILLA JESSICA_';
 
   var rawTel=String(t.celular||'').replace(/[^0-9]/g,'');
   var waNum='';
@@ -2749,12 +3034,12 @@ function autoDetectCargo(filename, raw, hr){
    ══════════════════════════════════════════════════════════════════════════ */
 function _tryAutoLogin(){
   try{
-    var sess=localStorage.getItem('sap_session');
+    var sess=localStorage.getItem('cj_session');
     if(!sess) return false;
     var s=JSON.parse(sess);
     // Session expires after 12 hours
     if(!s.idempleado || (Date.now()-s.ts)>43200000){
-      localStorage.removeItem('sap_session');
+      localStorage.removeItem('cj_session');
       return false;
     }
     // Restore session without re-validating password
