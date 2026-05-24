@@ -373,7 +373,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     <button class="tab"     onclick="st('p3',this)">👁 <span class="tab-long">Vista previa</span></button>
     <button class="tab"     onclick="st('p4',this)">🔍 <span class="tab-long">Detalle</span></button>
     <button class="tab"     onclick="st('p5',this)">📊 <span class="tab-long">Resumen</span></button>
-    <button class="tab"     onclick="st('p6',this);renderHist();if(!loadHist().length)cargarDesdeSheets(true)">📚 <span class="tab-long">Historial</span></button>
+    <button class="tab"     onclick="st('p6',this);renderHist();_syncHistSheets()" >📚 <span class="tab-long">Historial</span></button>
     <button class="tab"     onclick="st('p7',this);renderInfoAdicional()">👤 <span class="tab-long">Adicional</span></button>
   </div>
   <div class="cnt">
@@ -1512,12 +1512,11 @@ function _doLogin(id, pw){
   $d('LS').style.display='none';
   $d('AP').style.display='block';
   $d('ul').textContent = u.nombre || u.idempleado;
-  // Sincronizar historial desde Sheets al iniciar sesión
+  // ── Auto-sincronizar historial desde Sheets al iniciar sesión ────────────
+  // Sheets = fuente de verdad compartida entre todos los usuarios
   setTimeout(function(){
-    if(loadHist().length===0){
-      cargarDesdeSheets(true); // silencioso si historial vacío
-    }
-  }, 2000); // esperar que la app termine de cargar
+    cargarDesdeSheets(true); // siempre sincronizar, silenciosamente
+  }, 1500);
   tarifasOk=true;
   renderTar();
   checkReady();
@@ -2536,7 +2535,24 @@ function guardarCierre(){
     const neto=+(w.bruto-td).toFixed(2);
     return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo:w.cargo||cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',nombre_prop:w.nombreProp||'',cedula_prop:w.cedProp||'',drive_url:ov.driveUrl||''};
   });
-  const rolDetalle=det.map(r=>({id_rol:idRol,cedula:r.cedula,tipo:r.tipo==='HORA'?'HORA':'AVANCE',fecha:r.fecha,fecha_sort:r.fechaSort,turno:r.turno,area:r.det2,hora_ing:r.horaIng,hora_sal:r.horaSal,horas:r.tipo==='HORA'?+r.cant.toFixed(2):0,tarifa:+r.tarTu.toFixed(4),pago:+r.valTu.toFixed(2),completo:1,peso:r.tipo==='PROD'?+r.cant.toFixed(2):0,unid:r.ud,tipo_proceso:r.tipoProceso||'',cliente:r.cliente||'',sede:r.sedeR||sede}));
+  const rolDetalle=det.map(r=>({
+    id_rol:idRol, cedula:r.cedula,
+    tipo:r.tipo==='HORA'?'HORA':'AVANCE',
+    fecha:r.fecha, fecha_sort:r.fechaSort,
+    turno:r.turno, area:r.det2,
+    hora_ing:r.horaIng, hora_sal:r.horaSal,
+    horas:r.tipo==='HORA'?+r.cant.toFixed(2):0,
+    tarifa:+r.tarTu.toFixed(4),
+    pago:+r.valTu.toFixed(2),
+    completo:1,
+    peso:r.tipo==='PROD'?+r.cant.toFixed(2):0,
+    unid:r.ud,
+    tipo_proceso:r.tipoProceso||'',
+    cliente:r.cliente||'',
+    sede:r.sedeR||sede,
+    tar_base:+(r.tarBase||r.tarTu).toFixed(4),  // ← tarifa base sin feriado
+    es_feriado:r.esHoliday?1:0                  // ← indicador de feriado
+  }));
   // localStorage
   const cierre={id:idRol,rango,fecha_guardado:new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),cargo,sede,periodo_ini:ini,periodo_fin:fin,trabajadores:rolPagos.map((rp,i)=>{const w=list[i];const ov=getOv(w.cedula);return{...rp,id_rol:undefined,total_emp_h:+w.eH.toFixed(2),total_tu_h:+w.tH.toFixed(2),total_emp_p:+w.eP.toFixed(2),total_tu_p:+w.tP.toFixed(2),bonusAvance:w.bonusAvance,total_emp:+(w.eH+w.eP).toFixed(2),total_tu:w.bruto,margen:+(w.eH+w.eP-w.bruto).toFixed(2),lineasH:w.lineasH,lineasP:w.lineasP,estado:'pendiente'};})};
   const hist=loadHist();const eIdx=hist.findIndex(x=>x.id===idRol);if(eIdx>=0)hist[eIdx]=cierre;else hist.unshift(cierre);saveHistData(hist);
@@ -2588,7 +2604,14 @@ function delCierre(id){
       .catch(function(e){toast('Error red: '+e.message);});
   }
 }
-function clearHist(){if(!confirm('¿Limpiar TODO el historial local?'))return;localStorage.removeItem(HIST_KEY);renderHist();toast('Historial limpiado');}
+function clearHist(){
+  if(!confirm('¿Limpiar caché local del historial?\n\nLos roles en Google Sheets NO se eliminan.\nSe volverán a cargar desde Sheets automáticamente.'))return;
+  localStorage.removeItem(HIST_KEY);
+  _lastSheetsSync=0;
+  renderHist();
+  cargarDesdeSheets(false); // recargar desde Sheets
+  toast('Caché local limpiado — recargando desde Sheets...');
+}
 
 function openRolHist(cierreId,key){
   key=key.replace(/__q__/g,"'");
@@ -3506,65 +3529,121 @@ async function rmPDFDrive(){
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   cargarDesdeSheets — sincroniza historial desde ROL_PAGOS en Google Sheets
-   Se llama al abrir la pestaña Historial o al hacer clic en "Sincronizar"
-   ══════════════════════════════════════════════════════════════════════════ */
+/* ══ HISTORIAL COMPARTIDO — Sheets como fuente de verdad ═══════════════════
+   Todos los usuarios ven los mismos datos porque leen de ROL_PAGOS/ROL_DETALLE
+   El localStorage es solo caché temporal (velocidad + offline fallback)       */
+
+var _lastSheetsSync = 0;  // timestamp del último sync con Sheets
+
+/* _syncHistSheets: sincroniza historial desde Sheets (con throttle de 90s)
+   Se llama al abrir el tab Historial. Muestra caché local inmediatamente
+   y actualiza en segundo plano si han pasado más de 90 segundos.            */
+function _syncHistSheets(){
+  var age = Date.now() - _lastSheetsSync;
+  var hasLocal = loadHist().length > 0;
+
+  if(hasLocal && age < 90000){
+    // Caché reciente (<90s) → no llamar a Sheets de nuevo
+    return;
+  }
+
+  // Llamar a Sheets en segundo plano (silencioso si ya hay datos locales)
+  cargarDesdeSheets(hasLocal);
+}
+
+/*  cargarDesdeSheets — sincroniza historial desde ROL_PAGOS en Google Sheets
+    Sheets es la FUENTE DE VERDAD. Todos los usuarios ven lo mismo.
+    localStorage = caché local (más rápido, funciona offline).               */
 function cargarDesdeSheets(silent){
   if(!getAPI()||!getAPI().includes('script.google')){
     if(!silent) toast('Configura DEFAULT_API para sincronizar');
     return;
   }
   var btn=$d('btn-sync-sheets');
-  if(btn){btn.disabled=true;btn.textContent='⏳ Sincronizando...';}
+  if(btn&&!silent){btn.disabled=true;btn.textContent='⏳ Cargando...';}
+
   fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'get_historial'})})
     .then(function(r){return r.json();})
     .then(function(r){
       if(!r.ok){
         if(btn){btn.disabled=false;btn.textContent='☁ Sincronizar';}
-        if(!silent) toast('Error: '+(r.error||''));
+        if(!silent) toast('Error Sheets: '+(r.error||''));
         return;
       }
       var cierresSheets=r.cierres||[];
-      if(!cierresSheets.length){
-        if(btn){btn.disabled=false;btn.textContent='☁ Sincronizar';}
-        if(!silent) toast('No hay roles en Sheets aún');
-        return;
-      }
-      // Merge: Sheets is source of truth, preserve lineasH/lineasP from local
+
+      // ── Sheets = fuente de verdad: usar sus lineasH/lineasP de ROL_DETALLE ──
+      // Local = suplemento para campos extra (tipoCuenta, expresoDia, etc.)
       var local=loadHist();
       var localMap={};
       local.forEach(function(c){localMap[c.id]=c;});
 
       var merged=cierresSheets.map(function(cs){
+        // Limpiar fechas en lineasH/lineasP que vienen de Sheets
+        cs.trabajadores.forEach(function(t){
+          t.lineasH.forEach(function(l){
+            l.fecha=_cleanFecha(l.fecha);
+            l.fechaSort=l.fechaSort||l.fecha;
+            // Calcular extraHora desde tarBase y tarTu
+            l.extraHora   = l.tarBase>0 ? +(l.tarTu-l.tarBase).toFixed(4) : 0;
+            l.extraAvance = 0;
+          });
+          t.lineasP.forEach(function(l){
+            l.fecha=_cleanFecha(l.fecha);
+            l.fechaSort=l.fechaSort||l.fecha;
+            l.extraAvance = l.tarBase>0 ? +(l.tarTu-l.tarBase).toFixed(4) : 0;
+            l.extraHora   = 0;
+          });
+        });
+
+        // Suplementar con datos locales (campos que no están en Sheets)
         var loc=localMap[cs.id];
         if(loc){
-          // Keep local line details (horas/avance) that Sheets doesn't store
           cs.trabajadores=cs.trabajadores.map(function(t){
             var lt=loc.trabajadores&&loc.trabajadores.find(function(x){
               return x.cedula===t.cedula||x.nombre===t.nombre;
             });
             if(lt){
-              t.lineasH=(lt.lineasH||[]).map(function(l){
-                if(l.fecha)l.fecha=_cleanFecha(l.fecha); return l;});
-              t.lineasP=(lt.lineasP||[]).map(function(l){
-                if(l.fecha)l.fecha=_cleanFecha(l.fecha); return l;});
-              t.nombreProp=lt.nombreProp||t.nombreProp||'';
-              t.cedProp=lt.cedProp||t.cedProp||'';
-              t.tipoCuenta=lt.tipoCuenta||t.tipoCuenta||'';
-              t.expresoDia=lt.expresoDia||0;
+              // Campos extras solo disponibles en local
+              t.nombreProp=t.nombreProp||lt.nombreProp||'';
+              t.cedProp   =t.cedProp||lt.cedProp||'';
+              t.tipoCuenta=t.tipoCuenta||lt.tipoCuenta||'';
+              t.expresoDia=t.expresoDia||lt.expresoDia||0;
+              // Si Sheets tiene lineasH/P → usarlas (source of truth)
+              // Si Sheets las tiene vacías (ROL_DETALLE no encontrado) → usar local
+              if(!t.lineasH.length && lt.lineasH && lt.lineasH.length){
+                t.lineasH=lt.lineasH.map(function(l){if(l.fecha)l.fecha=_cleanFecha(l.fecha);return l;});
+              }
+              if(!t.lineasP.length && lt.lineasP && lt.lineasP.length){
+                t.lineasP=lt.lineasP.map(function(l){if(l.fecha)l.fecha=_cleanFecha(l.fecha);return l;});
+              }
             }
             return t;
           });
+          // Preservar flag de pendiente local
+          if(loc._pendiente_sheets) cs._pendiente_sheets=true;
         }
         return cs;
       });
 
+      _lastSheetsSync = Date.now();
       saveHistData(merged);
-      renderHist();
+
+      // Actualizar UI si el tab Historial está visible
+      var p6=document.getElementById('p6');
+      var p6Visible=p6&&p6.classList.contains('on');
+      if(p6Visible) renderHist();
+
       if(btn){btn.disabled=false;btn.textContent='☁ Sincronizar';}
-      toast('✓ '+cierresSheets.length+' roles cargados desde Sheets');
+      if(!silent){
+        toast('✓ '+cierresSheets.length+' roles desde Sheets');
+      } else if(p6Visible && cierresSheets.length!==local.length){
+        // Solo avisar si cambiaron los datos
+        toast('🔄 Historial actualizado: '+cierresSheets.length+' roles');
+      }
     })
     .catch(function(e){
+      _lastSheetsSync = Date.now() - 60000; // reintentar en 30s
       if(btn){btn.disabled=false;btn.textContent='☁ Sincronizar';}
       if(!silent) toast('Error de red: '+e.message);
     });
@@ -3637,12 +3716,9 @@ function _tryAutoLogin(){
     $d('LS').style.display='none';
     $d('AP').style.display='block';
     $d('ul').textContent=s.nombre||s.idempleado;
-    // Reload Sheets data silently
+    // Recargar tarifas y siempre sincronizar historial desde Sheets
     _recargarDatos(true);
-    // Sincronizar historial desde Sheets si está vacío
-    setTimeout(function(){
-      if(loadHist().length===0) cargarDesdeSheets(true);
-    }, 3000);
+    setTimeout(function(){ cargarDesdeSheets(true); }, 2000);
     return true;
   }catch(e){ return false; }
 }
