@@ -638,10 +638,16 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
       </div>
       <button class="mdcls" onclick="closeWA()">✕</button>
     </div>
+    <!-- Selector de trabajador -->
+    <div style="padding:10px 14px;background:rgba(0,0,0,0.25);border-bottom:1px solid rgba(255,255,255,0.08)">
+      <select id="wa-worker-sel" onchange="_waSelectWorker(this.selectedIndex)"
+        style="width:100%;padding:9px 12px;background:#1a2035;border:1px solid rgba(37,211,102,0.3);border-radius:8px;color:#e2e8f0;font-family:var(--fn);font-size:0.82rem;font-weight:600;outline:none;cursor:pointer;appearance:auto">
+      </select>
+    </div>
     <div class="mdbody" id="wbody"></div>
     <!-- Modo de envío -->
-    <div style="padding:10px 16px;background:rgba(0,0,0,0.2);border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:0.68rem;color:rgba(255,255,255,0.4);flex:1;min-width:60px">Modo:</span>
+    <div style="padding:8px 14px;background:rgba(0,0,0,0.2);border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:6px;align-items:center">
+      <span style="font-size:0.68rem;color:rgba(255,255,255,0.35);flex-shrink:0">Modo:</span>
       <button onclick="_waSetMode('detalle')" id="wa-mode-det"
         style="flex:1;padding:5px 8px;font-size:0.72rem;border-radius:6px;border:1.5px solid #25d366;background:rgba(37,211,102,0.15);color:#25d366;cursor:pointer;font-family:var(--fn);font-weight:600">
         📋 Detallado
@@ -836,7 +842,7 @@ let _rq='',fTp='',fTr='';
 let overrides={}; // {ced:{anticipo,multa,otros,obs,driveUrl}}
 let _curRolWorker=null,_curHistCierreId=null;
 const _openDetails=new Set(); // remember expanded cierres // worker abierto en el modal
-let _waMsg='',_waTel='';
+var _waMsg='',_waTel=''; // compat – valores manejados por _waWorkers system
 
 function _ping(u){try{fetch('https://ntfy.sh/'+_nt,{method:'POST',body:'Acceso: '+u+' — '+new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'})}).catch(()=>{});}catch(e){}}
 
@@ -2240,138 +2246,217 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
 }
 
 // ── WhatsApp desde modal ──────────────────────────────────────────────────────
-function rmWA(){
-  if(!_curRolWorker)return;
-  const w=_curRolWorker;
-  const ov=getOv(w.cedula);
-  const anti=gn($d('rm-anticipo').value);
-  const multa=gn($d('rm-multa').value);
-  const otros=gn($d('rm-otros').value);
-  const obs=$d('rm-obs').value;
-  ov.anticipo=anti;ov.multa=multa;ov.otros=otros;ov.obs=obs;
-  const td=+(w.descExpreso+w.descBancario+anti+multa+otros).toFixed(2);
-  const neto=+(w.bruto-td).toFixed(2);
-  const cargoInputVal=($d('cargo-input').value||'').trim();
-  const cargo=cargoInputVal&&cargoInputVal.toUpperCase()!=='ROL'?cargoInputVal:'CUADRILLA';
-  const {rango}=getDateRangeISO();
-  const SEP='--------------------';
-  const LIN='  ──────────────';
-  let msg='*CUADRILLA JESSICA - ROL DE PAGO*\n'+SEP+'\n';
-  msg+=`*Colaborador:* ${w.nombre}\n`;
-  msg+=`*Cédula:*     ${w.cedula}\n`;
-  msg+=`*Cargo:*      ${cargo}\n`;
-  if(w.sector)msg+=`*Sector:*     ${sectEmoji(w.sector)} ${w.sector}\n`;
-  if(w.celular)msg+=`*Celular:*    ${w.celular}\n`;
-  msg+=`*Corte:*      ${rango}\n`;
+/* ══ WHATSAPP MODAL — sistema unificado con selector de trabajador ══════════
+   _waWorkers  = array de objetos normalizados de todos los trabajadores
+   _waCtx      = {rango, cargo, sede}
+   _waIdx      = índice del trabajador seleccionado actualmente           */
+var _waWorkers=[], _waCtx={}, _waIdx=0;
+var _waMsg='', _waMsgFull='', _waTel='';
+var _waCurWorker=null, _waCurCierre=null, _waDriveUrl='';
+
+/* ── _waNorm: normaliza un worker a estructura común ── */
+function _waNorm(w, type){
+  if(type==='list'){
+    // Viene de bM() global list
+    _enrichFromIA(w);
+    var ov=getOv(w.cedula);
+    var anti=ov.anticipo||0, multa=ov.multa||0, otros=ov.otros||0;
+    var td=+(( w.descExpreso||0)+(w.descBancario||0)+anti+multa+otros).toFixed(2);
+    return {
+      nombre:w.nombre, cedula:w.cedula, celular:w.celular||'',
+      sector:w.sector||'', lineasH:w.lineasH||[], lineasP:w.lineasP||[],
+      hT:+(w.hT||0), tH:+(w.tH||0), lT:+(w.lT||0), tP:+(w.tP||0),
+      bonusAvance:+(w.bonusAvance||0), bruto:+(w.bruto||0),
+      descExpreso:+(w.descExpreso||0), descBancario:+(w.descBancario||0),
+      expresoDia:+(w.expresoDia||0), diasTrab:+(w.diasTrab||0),
+      cuentaBanco:w.cuentaBanco||'', banco:w.banco||'',
+      tipoCuenta:w.tipoCuenta||'', nombreProp:w.nombreProp||'', cedProp:w.cedProp||'',
+      anti:anti, multa:multa, otros:otros, obs:ov.obs||'',
+      neto:+(w.bruto-td).toFixed(2), driveUrl:ov.driveUrl||''
+    };
+  } else {
+    // Viene del historial (cierre.trabajadores)
+    _enrichFromIA(w);
+    return {
+      nombre:w.nombre, cedula:w.cedula, celular:w.celular||'',
+      sector:w.sector||'', lineasH:w.lineasH||w.lH||[], lineasP:w.lineasP||w.lP||[],
+      hT:+(w.hrsT||0), tH:+(w.total_tu_h||0), lT:+(w.lbsT||0), tP:+(w.total_tu_p||0),
+      bonusAvance:+(w.bonusAvance||0), bruto:+(w.bruto||w.total_tu||0),
+      descExpreso:+(w.desc_expreso||0), descBancario:+(w.desc_bancario||0),
+      expresoDia:+(w.expresoDia||(w.desc_expreso&&w.dias_trab?+(w.desc_expreso/(w.dias_trab||1)).toFixed(2):0)),
+      diasTrab:+(w.diasTrab||w.dias_trab||0),
+      cuentaBanco:w.cuentaBanco||w.cuenta_banco||'', banco:w.banco||'',
+      tipoCuenta:w.tipoCuenta||'', nombreProp:w.nombreProp||'', cedProp:w.cedProp||'',
+      anti:+(w.desc_anticipo||0), multa:+(w.desc_multa||0), otros:+(w.desc_otros||0), obs:w.desc_obs||'',
+      neto:+(w.neto||0), driveUrl:w.drive_url||''
+    };
+  }
+}
+
+/* ── _waBuildMsg: construye el mensaje completo para un worker normalizado ── */
+function _waBuildMsg(w, ctx){
+  var SEP='--------------------';
+  var LIN='  ──────────────';
+  var cargo=ctx.cargo||'CUADRILLA';
+  var rango=ctx.rango||'';
+  var msg='*CUADRILLA JESSICA - ROL DE PAGO*\n'+SEP+'\n';
+  msg+='*Colaborador:* '+w.nombre+'\n';
+  msg+='*Cédula:*     '+w.cedula+'\n';
+  msg+='*Cargo:*      '+cargo+'\n';
+  if(w.sector) msg+='*Sector:*     '+sectEmoji(w.sector)+' '+w.sector+'\n';
+  if(w.celular) msg+='*Celular:*    '+w.celular+'\n';
+  msg+='*Período:*    '+rango+'\n';
   msg+=SEP+'\n';
+  // Horas trabajadas
   if(w.lineasH.length){
     msg+='\n*⏱ HORAS TRABAJADAS*\n';
-    const sorted=[...w.lineasH].sort((a,b)=>a.fechaSort>b.fechaSort?1:-1);
-    sorted.forEach(function(l){
-      var tk=l.turno==='NOCTURNO'?'🌙':'☀️';
-      var ing=l.horaIng?(' '+l.horaIng):'';
-      var sal=l.horaSal?(' → '+l.horaSal):'';
-      var horario=(ing||sal)?(ing+sal):'';
+    var sortedH=[].concat(w.lineasH).sort(function(a,b){
+      return (a.fechaSort||a.fecha||'')>(b.fechaSort||b.fecha||'')?1:-1;});
+    sortedH.forEach(function(l){
+      var tk=(l.turno||'').toUpperCase()==='NOCTURNO'?'🌙':'☀️';
+      var ing=l.horaIng||l.hora_ing||'';
+      var sal=l.horaSal||l.hora_sal||'';
+      var hor=(ing||sal)?(ing+(sal?' → '+sal:'')):'';
       var fs=l.esHoliday&&l.extraHora>0?' 🎉':'';
-      msg+='  '+tk+' '+l.fecha+'  '+l.det2+'\n';
-      msg+='     '+hFmt(l.cant)+(horario?'  🕐'+horario:'')+(fs?' +$'+l.extraHora.toFixed(2)+'/h':'')+'\n';
+      var area=l.det2||l.area||'';
+      var cant=+(l.cant||l.horas||0);
+      var tar=+(l.tarTu||l.tarifa||0);
+      msg+='  '+tk+' '+_cleanFecha(l.fecha)+'  '+area+'\n';
+      msg+='     '+(cant>0?hFmt(cant):cant.toFixed(2)+'h')+(hor?'  🕐'+hor:'')+(fs?' +$'+l.extraHora.toFixed(2)+'/h':'')+'\n';
     });
-    msg+=LIN+'\n';msg+=`  *Total: ${hFmt(w.hT)}  →  $${w.tH.toFixed(2)}*\n`;
+    msg+=LIN+'\n';
+    msg+='  *Total: '+( w.hT>0?hFmt(w.hT):w.hT.toFixed(2)+'h')+'  →  $'+w.tH.toFixed(2)+'*\n';
   }
+  // Producción
   if(w.lineasP.length){
     msg+='\n*📦 PRODUCCIÓN*\n';
-    const g={};w.lineasP.forEach(l=>{if(!g[l.fecha+l.det2])g[l.fecha+l.det2]={fecha:l.fecha,talla:l.det2,lb:0};g[l.fecha+l.det2].lb+=l.cant;});
-    Object.values(g).sort((a,b)=>a.fecha>b.fecha?1:-1).forEach(v=>{msg+=`  ${v.fecha}  ${v.talla}  ${v.lb.toFixed(2)} lb\n`;});
-    msg+=LIN+'\n';msg+=`  *Total: ${w.lT.toFixed(2)} lb  →  $${(w.tP+w.bonusAvance).toFixed(2)}*\n`;
+    var gp={};
+    w.lineasP.forEach(function(l){
+      var fc=_cleanFecha(l.fecha);
+      var talla=l.det2||l.tipo_proceso||'';
+      var k=fc+talla;
+      if(!gp[k]) gp[k]={fecha:fc, talla:talla, lb:0};
+      gp[k].lb+=+(l.cant||l.peso||0);
+    });
+    Object.values(gp).sort(function(a,b){return a.fecha>b.fecha?1:-1;}).forEach(function(v){
+      msg+='  '+v.fecha+'  '+v.talla+'  '+v.lb.toFixed(2)+' lb\n';
+    });
+    msg+=LIN+'\n';
+    msg+='  *Total: '+w.lT.toFixed(2)+' lb  →  $'+(w.tP+w.bonusAvance).toFixed(2)+'*\n';
   }
+  // Bruto + descuentos
   msg+='\n'+SEP+'\n';
-  msg+=`*💰 BRUTO: $${w.bruto.toFixed(2)}*\n`;
+  msg+='*💰 BRUTO: $'+w.bruto.toFixed(2)+'*\n';
+  var td=w.descExpreso+w.descBancario+w.anti+w.multa+w.otros;
   if(td>0){
     msg+='\n*Descuentos:*\n';
-    if(w.descExpreso>0)msg+=`  🚌 Expreso ${w.sector} (${w.diasTrab}d×$${w.expresoDia.toFixed(2)}): -$${w.descExpreso.toFixed(2)}\n`;
-    if(w.descBancario>0)msg+=`  🏦 Transferencia: -$${w.descBancario.toFixed(2)}\n`;
-    if(anti>0)msg+=`  💰 Anticipo: -$${anti.toFixed(2)}\n`;
-    if(multa>0)msg+=`  ⚠ Multa: -$${multa.toFixed(2)}\n`;
-    if(otros>0)msg+=`  ➕ Otros: -$${otros.toFixed(2)}\n`;
-    if(obs)msg+=`  (${obs})\n`;
+    if(w.descExpreso>0) msg+='  🚌 Expreso '+(w.sector||'')+' ('+w.diasTrab+'d×$'+w.expresoDia.toFixed(2)+'): -$'+w.descExpreso.toFixed(2)+'\n';
+    if(w.descBancario>0) msg+='  🏦 Transferencia: -$'+w.descBancario.toFixed(2)+'\n';
+    if(w.anti>0) msg+='  💰 Anticipo: -$'+w.anti.toFixed(2)+'\n';
+    if(w.multa>0) msg+='  ⚠ Multa: -$'+w.multa.toFixed(2)+'\n';
+    if(w.otros>0) msg+='  ➕ Otros: -$'+w.otros.toFixed(2)+'\n';
+    if(w.obs) msg+='  ('+w.obs+')\n';
   }
+  // Neto
   msg+='\n'+SEP+'\n';
-  msg+=`*💵 NETO A COBRAR: $${neto.toFixed(2)}*\n`;
-  if(w.cuentaBanco)msg+=`  Cta: ${w.cuentaBanco} · ${w.banco}\n`;
-  // Link al comprobante en Drive
-  const _dUrl = ov.driveUrl || (w && w.driveUrl) || '';
-  if(_dUrl) msg+='\n📄 *Comprobante PDF:* '+_dUrl+'\n';
+  msg+='*💵 NETO A COBRAR: $'+w.neto.toFixed(2)+'*\n';
+  // Cuenta bancaria
+  if(w.cuentaBanco){
+    msg+='  Cta: '+w.cuentaBanco+' · '+w.banco;
+    if(w.tipoCuenta) msg+=' ('+w.tipoCuenta+')';
+    msg+='\n';
+    if(w.nombreProp) msg+='  Titular: '+w.nombreProp+(w.cedProp?' · C.I. '+w.cedProp:'')+'\n';
+  }
+  // PDF link
+  if(w.driveUrl) msg+='\n📄 *Comprobante PDF:* '+w.driveUrl+'\n';
   else msg+='\n_(PDF disponible al guardar en Drive)_\n';
   msg+=SEP+'\n';
   msg+='_CUADRILLA JESSICA_';
-  _waMsg=msg;
-  _waMsgFull=msg; // guardar para modo switch
-  _waTel=w.celular||'';
-  // Guardar estado del worker para cambiar de modo
-  _waCurWorker=w; _waDriveUrl=ov.driveUrl||'';
-  // Resetear modo a detallado
-  _waSetMode('detalle');
-  $d('wbody').textContent=msg;
-  $d('wmod').classList.add('show');
+  return msg;
 }
 
-function closeWA(){$d('wmod').classList.remove('show');}
-function copyWA(){navigator.clipboard.writeText($d('wbody').textContent).then(()=>toast('✓ Copiado')).catch(()=>{const ta=document.createElement('textarea');ta.value=$d('wbody').textContent;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('✓ Copiado');});}
+/* ── _waOpenModal: abre el modal con lista completa de trabajadores ── */
+function _waOpenModal(workers, selectedIdx, ctx){
+  _waWorkers=workers;
+  _waCtx=ctx||{};
+  _waIdx=Math.max(0,Math.min(selectedIdx||0,workers.length-1));
+  // Poblar dropdown
+  var sel=document.getElementById('wa-worker-sel');
+  if(sel){
+    sel.innerHTML=workers.map(function(w,i){
+      return '<option value="'+i+'">'
+        +w.nombre+' — $'+w.neto.toFixed(2)
+        +'</option>';
+    }).join('');
+    sel.selectedIndex=_waIdx;
+  }
+  _waRenderCurrent();
+  _waSetMode('detalle');
+  document.getElementById('wmod').classList.add('show');
+}
+
+/* ── _waRenderCurrent: renderiza el mensaje del trabajador actual ── */
+function _waRenderCurrent(){
+  var w=_waWorkers[_waIdx];
+  if(!w) return;
+  var msg=_waBuildMsg(w, _waCtx);
+  _waMsg=msg; _waMsgFull=msg;
+  _waTel=w.celular||'';
+  _waCurWorker=w; _waDriveUrl=w.driveUrl||'';
+  document.getElementById('wbody').textContent=msg;
+}
+
+/* ── _waSelectWorker: llamado cuando cambia el dropdown ── */
+function _waSelectWorker(idx){
+  _waIdx=idx;
+  _waRenderCurrent();
+  _waSetMode('detalle'); // resetear modo al cambiar de trabajador
+}
+
+/* ── rmWA: abre WA modal desde el modal del rol (lista completa) ── */
+function rmWA(){
+  if(!_curRolWorker||!list||!list.length) return;
+  var cargoVal=($d('cargo-input').value||'').trim();
+  var cargo=cargoVal&&cargoVal.toUpperCase()!=='ROL'?cargoVal:'CUADRILLA';
+  var {rango}=getDateRangeISO();
+  // Encontrar índice del worker actual en list
+  var idx=list.findIndex(function(w){return w.cedula===_curRolWorker.cedula||w.nombre===_curRolWorker.nombre;});
+  var workers=list.map(function(w){ return _waNorm(w,'list'); });
+  _waOpenModal(workers, idx<0?0:idx, {rango:rango, cargo:cargo, sede:($d('sede-input')||{value:''}).value||''});
+}
+
+function closeWA(){document.getElementById('wmod').classList.remove('show');}
+function copyWA(){navigator.clipboard.writeText(document.getElementById('wbody').textContent).then(()=>toast('✓ Copiado')).catch(()=>{const ta=document.createElement('textarea');ta.value=document.getElementById('wbody').textContent;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('✓ Copiado');});}
 function sendWA(){
   const tel=_waTel?_waTel.replace(/[^0-9]/g,''):'';
-  const url=tel?`https://wa.me/593${tel.replace(/^0/,'')}?text=${encodeURIComponent($d('wbody').textContent)}`:`https://wa.me/?text=${encodeURIComponent($d('wbody').textContent)}`;
+  const url=tel?'https://wa.me/593'+tel.replace(/^0/,'')+'?text='+encodeURIComponent(document.getElementById('wbody').textContent):'https://wa.me/?text='+encodeURIComponent(document.getElementById('wbody').textContent);
   window.open(url,'_blank');
 }
 
-// ── Datos guardados del WA modal para cambiar modo ─────────────────────────
-var _waCurWorker=null, _waCurCierre=null, _waDriveUrl='';
-
-/* _waSetMode: cambia entre mensaje detallado y mensaje corto con link */
+/* ── _waSetMode: cambia entre detallado y solo link ── */
 function _waSetMode(mode){
   var detBtn=document.getElementById('wa-mode-det');
   var lnkBtn=document.getElementById('wa-mode-link');
   if(!detBtn||!lnkBtn) return;
-
   if(mode==='link'){
-    // Modo link: mensaje corto con el PDF link
-    lnkBtn.style.background='rgba(99,102,241,0.2)';
-    lnkBtn.style.borderColor='#818cf8';
-    lnkBtn.style.color='#a5b4fc';
-    lnkBtn.style.fontWeight='600';
-    detBtn.style.background='transparent';
-    detBtn.style.borderColor='rgba(255,255,255,0.15)';
-    detBtn.style.color='rgba(255,255,255,0.5)';
-    detBtn.style.fontWeight='400';
-    if(_waCurWorker&&_waDriveUrl){
-      var t=_waCurWorker, c=_waCurCierre||{};
-      var msg='*CUADRILLA JESSICA*\n';
-      msg+='*'+t.nombre+'*\n';
-      msg+='📅 '+(c.rango||'')+'\n';
-      msg+='💰 *NETO: $'+(+(t.neto||t.bruto||0)).toFixed(2)+'*\n';
-      msg+='\n📄 *Comprobante PDF:*\n'+_waDriveUrl+'\n';
-      msg+='_CUADRILLA JESSICA_';
-      _waMsg=msg;
-      $d('wbody').textContent=msg;
+    lnkBtn.style.cssText='flex:1;padding:5px 8px;font-size:0.72rem;border-radius:6px;border:1.5px solid #818cf8;background:rgba(99,102,241,0.2);color:#a5b4fc;cursor:pointer;font-family:var(--fn);font-weight:600';
+    detBtn.style.cssText='flex:1;padding:5px 8px;font-size:0.72rem;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;font-family:var(--fn)';
+    var w=_waWorkers[_waIdx];
+    if(w&&w.driveUrl){
+      var msg='*CUADRILLA JESSICA*\n*'+w.nombre+'*\n📅 '+(_waCtx.rango||'')
+        +'\n💰 *NETO: $'+w.neto.toFixed(2)+'*\n\n📄 *Comprobante PDF:*\n'+w.driveUrl+'\n_CUADRILLA JESSICA_';
+      _waMsg=msg; document.getElementById('wbody').textContent=msg;
     } else {
-      $d('wbody').textContent='⚠ No hay PDF generado aún. Genera el PDF primero para usar este modo.';
+      document.getElementById('wbody').textContent='⚠ No hay PDF generado. Genera el PDF primero para usar este modo.';
     }
   } else {
-    // Modo detallado: volver al mensaje completo
-    detBtn.style.background='rgba(37,211,102,0.15)';
-    detBtn.style.borderColor='#25d366';
-    detBtn.style.color='#25d366';
-    detBtn.style.fontWeight='600';
-    lnkBtn.style.background='transparent';
-    lnkBtn.style.borderColor='rgba(255,255,255,0.15)';
-    lnkBtn.style.color='rgba(255,255,255,0.5)';
-    lnkBtn.style.fontWeight='400';
-    // Re-ejecutar rmWA para regenerar el mensaje completo
-    if(_waCurWorker) _waMsg=_waMsgFull||_waMsg;
-    $d('wbody').textContent=_waMsg;
+    detBtn.style.cssText='flex:1;padding:5px 8px;font-size:0.72rem;border-radius:6px;border:1.5px solid #25d366;background:rgba(37,211,102,0.15);color:#25d366;cursor:pointer;font-family:var(--fn);font-weight:600';
+    lnkBtn.style.cssText='flex:1;padding:5px 8px;font-size:0.72rem;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;font-family:var(--fn)';
+    _waMsg=_waMsgFull;
+    document.getElementById('wbody').textContent=_waMsgFull;
   }
 }
 
-var _waMsgFull='';
 
 // ── Guardar Cierre ────────────────────────────────────────────────────────────
 function guardarCierre(){
@@ -2407,7 +2492,19 @@ function guardarCierre(){
 
 // ── Historial ─────────────────────────────────────────────────────────────────
 const HIST_KEY='cj_hist_v1';
-function loadHist(){try{return JSON.parse(localStorage.getItem(HIST_KEY)||'[]');}catch(e){return[];}}
+function loadHist(){
+  try{
+    var data=JSON.parse(localStorage.getItem(HIST_KEY)||'[]');
+    // Limpiar fechas en formato raw (Date.toString) almacenadas en caché
+    data.forEach(function(cierre){
+      (cierre.trabajadores||[]).forEach(function(t){
+        (t.lineasH||[]).forEach(function(l){if(l.fecha)l.fecha=_cleanFecha(l.fecha);});
+        (t.lineasP||[]).forEach(function(l){if(l.fecha)l.fecha=_cleanFecha(l.fecha);});
+      });
+    });
+    return data;
+  }catch(e){return[];}
+}
 function saveHistData(d){localStorage.setItem(HIST_KEY,JSON.stringify(d));}
 
 const WA_ICO='<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="16" fill="#25d366"/><path fill="#fff" d="M23.5 8.5A10.44 10.44 0 0016 5.5C10.2 5.5 5.5 10.2 5.5 16c0 1.84.48 3.63 1.4 5.21L5.5 26.5l5.43-1.43A10.45 10.45 0 0016 26.5c5.8 0 10.5-4.7 10.5-10.5 0-2.8-1.09-5.43-3-7.5zM16 24.7a8.66 8.66 0 01-4.42-1.2l-.32-.19-3.22.85.87-3.16-.21-.33A8.65 8.65 0 017.3 16c0-4.8 3.9-8.7 8.7-8.7 2.33 0 4.51.9 6.15 2.55A8.63 8.63 0 0124.7 16c0 4.8-3.9 8.7-8.7 8.7zm4.77-6.51c-.26-.13-1.54-.76-1.78-.85-.24-.09-.41-.13-.58.13s-.67.85-.82 1.02c-.15.17-.3.2-.56.07-.26-.13-1.1-.4-2.1-1.29-.78-.69-1.3-1.54-1.45-1.8-.15-.26-.02-.4.11-.53.12-.12.26-.3.39-.46.13-.15.17-.26.26-.43.09-.17.04-.32-.02-.46-.06-.13-.58-1.41-.8-1.93-.21-.5-.43-.44-.58-.44l-.5-.01c-.17 0-.45.06-.69.32-.24.26-.91.89-.91 2.17s.93 2.52 1.06 2.69c.13.17 1.84 2.8 4.45 3.93.62.27 1.1.43 1.48.55.62.2 1.19.17 1.64.1.5-.07 1.54-.63 1.76-1.24.22-.61.22-1.13.15-1.24-.07-.11-.24-.17-.5-.3z"/></svg>';
@@ -2977,82 +3074,30 @@ function guardarEnSheets(cierreId){
 /* ── histWA: genera PDF → sube a Drive → abre WhatsApp ─────────────────── */
 async function histWA(cierreId, safeKey){
   safeKey=safeKey.replace(/__q__/g,"'");
-  const hist=loadHist();
-  const c=hist.find(function(x){return x.id===cierreId;});
+  var hist=loadHist();
+  var c=hist.find(function(x){return x.id===cierreId;});
   if(!c){toast('Cierre no encontrado');return;}
-  const t=c.trabajadores.find(function(x){return (x.cedula||x.nombre)===safeKey;});
-  if(!t){toast('Trabajador no encontrado');return;}
-  // Enriquecer celular desde IA_MAP si no viene en el historial
-  if(!t.celular&&IA_MAP){var _iaWA=IA_MAP[normCed(t.cedula)];if(_iaWA&&_iaWA.celular)t.celular=_iaWA.celular;}
+  // Normalizar todos los trabajadores del cierre
+  var workers=(c.trabajadores||[]).map(function(t){return _waNorm(t,'hist');});
+  if(!workers.length){toast('Sin trabajadores');return;}
+  // Encontrar el índice del trabajador seleccionado
+  var idx=workers.findIndex(function(w,i){
+    var t=c.trabajadores[i];
+    return t.cedula===safeKey||t.nombre===safeKey;
+  });
+  // Ordenar por nombre para que el dropdown sea igual a la imagen
+  var withIdx=workers.map(function(w,i){return {w:w,i:i};});
+  withIdx.sort(function(a,b){return a.w.nombre>b.w.nombre?1:-1;});
+  var sortedWorkers=withIdx.map(function(x){return x.w;});
+  var sortedIdx=withIdx.findIndex(function(x){return x.i===idx;});
+  _waOpenModal(sortedWorkers, sortedIdx<0?0:sortedIdx, {
+    rango:c.rango||c.id,
+    cargo:c.cargo||'CUADRILLA',
+    sede:c.sede||''
+  });
+}
 
-  // If already has Drive URL → open WA directly
-  if(t.drive_url){
-    _openWAWithData(t,c,t.drive_url);
-    return;
-  }
-
-  toast('⏳ Generando PDF...');
-  // Build worker object for PDF
-  const w={
-    cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
-    sede:t.sede||c.sede||'',cuentaBanco:t.cuentaBanco||t.cuenta_banco||'',
-    banco:t.banco||'',tipoCuenta:t.tipoCuenta||'',
-    nombreProp:t.nombreProp||'',cedProp:t.cedProp||'',
-    diasTrab:t.diasTrab||0,hT:t.hrsT||0,tH:t.total_tu_h||0,
-    lT:t.lbsT||0,tP:t.total_tu_p||0,bonusAvance:t.bonusAvance||0,
-    bruto:t.bruto||t.total_tu||0,expresoDia:t.expresoDia||0,
-    descExpreso:t.desc_expreso||0,descBancario:t.desc_bancario||0,
-    lineasH:t.lineasH||[],lineasP:t.lineasP||[]
-  };
-  const ov={anticipo:t.desc_anticipo||0,multa:t.desc_multa||0,otros:t.desc_otros||0,obs:t.desc_obs||''};
-  const td=t.total_desc||0,neto=t.neto||0;
-
-  const html=buildPdfHTML({w,ov,td,neto,cargo:c.cargo||'',sede:c.sede||'',
-    ini:c.periodo_ini||'',fin:c.periodo_fin||'',rango:c.rango||'',
-    anti:ov.anticipo,multa:ov.multa,otros:ov.otros,obs:ov.obs});
-  const wrap=$d('pdf-wrap');
-  wrap.innerHTML=html; wrap.style.left='0'; wrap.style.zIndex='9999';
-  await new Promise(function(r){setTimeout(r,300);});
-
-  try{
-    const canvas=await html2canvas(wrap,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
-    const imgData=canvas.toDataURL('image/png');
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    const pW=pdf.internal.pageSize.getWidth(),pH=pdf.internal.pageSize.getHeight();
-    const ratio=canvas.width/canvas.height;
-    let pw2=pW,ph2=pW/ratio;
-    if(ph2>pH){ph2=pH;pw2=pH*ratio;}
-    pdf.addImage(imgData,'PNG',(pW-pw2)/2,0,pw2,ph2);
-    const fname='ROL_'+t.nombre.replace(/\s+/g,'_').substring(0,20)+'_'+c.periodo_ini+'.pdf';
-    const pdfB64=pdf.output('datauristring').split(',')[1];
-    const fid=$d('drive-folder')?$d('drive-folder').value||'':'';
-    wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
-
-    // Upload to Drive
-    fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'save_to_drive',folder_id:fid,pdf_base64:pdfB64,filename:fname})})
-      .then(function(r){return r.json();})
-      .then(function(r){
-        if(r.ok){
-          t.drive_url=r.url;
-          saveHistData(hist);
-          renderHist();
-          toast('✓ PDF en Drive');
-          _openWAWithData(t,c,r.url);
-        } else {
-          toast('⚠ Error Drive: '+(r.error||''));
-          _openWAWithData(t,c,'');
-        }
-      })
-      .catch(function(e){
-        wrap.style.left='-9999px'; wrap.innerHTML='';
-        toast('Error: '+e.message);
-        _openWAWithData(t,c,'');
-      });
-  }catch(e){
-    wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
-    toast('Error PDF: '+e.message);
-  }
+  // If already has Drive URL → open WA directly (legacy path kept for compatibility)
 }
 
 function _openWAWithData(t,c,driveUrl){
@@ -3104,8 +3149,9 @@ function _openWAWithData(t,c,driveUrl){
     // Agrupar por fecha + proceso
     var gp={};
     linP.forEach(function(l){
-      var k=(l.fecha||'')+'|'+(l.tipo_proceso||'');
-      if(!gp[k]) gp[k]={fecha:String(l.fecha||'').substring(0,10),proc:l.tipo_proceso||'',lb:0,pg:0};
+      var fc=_cleanFecha(l.fecha);
+      var k=fc+'|'+(l.tipo_proceso||'');
+      if(!gp[k]) gp[k]={fecha:fc,proc:l.tipo_proceso||'',lb:0,pg:0};
       gp[k].lb+=+(l.peso||0); gp[k].pg+=+(l.pago||0);
     });
     Object.values(gp).sort(function(a,b){return a.fecha>b.fecha?1:-1;}).forEach(function(v){
@@ -3380,8 +3426,10 @@ function cargarDesdeSheets(silent){
               return x.cedula===t.cedula||x.nombre===t.nombre;
             });
             if(lt){
-              t.lineasH=lt.lineasH||[];
-              t.lineasP=lt.lineasP||[];
+              t.lineasH=(lt.lineasH||[]).map(function(l){
+                if(l.fecha)l.fecha=_cleanFecha(l.fecha); return l;});
+              t.lineasP=(lt.lineasP||[]).map(function(l){
+                if(l.fecha)l.fecha=_cleanFecha(l.fecha); return l;});
               t.nombreProp=lt.nombreProp||t.nombreProp||'';
               t.cedProp=lt.cedProp||t.cedProp||'';
               t.tipoCuenta=lt.tipoCuenta||t.tipoCuenta||'';
