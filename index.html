@@ -229,27 +229,95 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 .bwas{flex:1;padding:10px;display:flex;align-items:center;justify-content:center;gap:8px;background:#25d366;color:#fff;border:none;border-radius:var(--rs);font-family:var(--fn);font-size:0.88rem;font-weight:500;cursor:pointer}
 
 @media(max-width:700px){
-  .tabs{gap:2px;padding:4px 2px;overflow-x:auto;flex-wrap:nowrap;}
-  .tab{font-size:0.65rem!important;padding:6px 6px!important;white-space:nowrap;}
-  .tbr{gap:4px;}
-  .tbu{font-size:0.72rem;}
-  .card{padding:12px 10px!important;}
-  .hist-hdr{flex-direction:column!important;gap:8px!important;}
-  #btn-sync-sheets{width:100%!important;font-size:0.78rem!important;}
-  .rmod{width:98vw!important;margin:4px!important;max-height:96vh!important;}
-  .rmod-body{padding:10px 6px!important;}
-  .rmod-tabs{gap:2px!important;}
-  .rmod-tab{font-size:0.68rem!important;padding:5px 6px!important;}
-  .rmod-desc-row{flex-direction:column!important;gap:4px!important;}
-  .hist-act{flex-wrap:wrap!important;gap:4px!important;}
-  .hist-act button{flex:1!important;min-width:80px!important;padding:8px 6px!important;}
-  .hist-nums{grid-template-columns:1fr 1fr!important;}
-  .hist-card{padding:12px 10px!important;}
-  #hf-search{min-width:100%!important;}
-  .trow{flex-direction:column!important;gap:4px!important;}
-  th,td{padding:5px 4px!important;font-size:0.72rem!important;}
-  .zh{min-height:70px!important;padding:16px 12px!important;}
-  .okf{font-size:0.7rem!important;}
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  .topb{height:auto!important;padding:8px 12px!important;flex-wrap:nowrap!important;min-height:48px}
+  .tbl img{width:28px!important;height:28px!important}
+  .tbn{font-size:0.78rem!important;letter-spacing:0!important}
+  .tbg{font-size:0.6rem!important;padding:2px 6px!important}
+  .tbu{display:none!important}                              /* ocultar nombre completo */
+  .tbr{gap:6px!important}
+  .bout{font-size:0.72rem!important;padding:5px 10px!important}
+
+  /* ── Tabs ────────────────────────────────────────────────────────────────── */
+  .tabs{padding:0 4px!important;gap:0!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{font-size:0.72rem!important;padding:11px 10px!important;white-space:nowrap!important;flex-shrink:0!important}
+  .tab-long{display:none}                                   /* solo mostrar ícono en móvil */
+
+  /* ── Layout ──────────────────────────────────────────────────────────────── */
+  .cnt{padding:10px 8px!important}
+  .card{padding:12px 10px!important;border-radius:8px!important;margin-bottom:10px!important}
+  .ctit{font-size:0.88rem!important}
+  .csub{font-size:0.74rem!important;margin-bottom:10px!important}
+
+  /* ── Tarifa grid: 1 columna en móvil ─────────────────────────────────────── */
+  .tgr{grid-template-columns:1fr!important}
+
+  /* ── Tarifa row: nombre arriba, D y N lado a lado ────────────────────────── */
+  .trow{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    grid-template-rows:auto auto!important;
+    gap:6px 8px!important;
+    padding:10px!important;
+    align-items:center!important;
+  }
+  .tkey{
+    grid-column:1 / -1!important;          /* nombre ocupa todo el ancho */
+    font-size:0.8rem!important;
+    font-weight:600!important;
+  }
+  .trow > div:not(.tkey){
+    display:flex!important;
+    align-items:center!important;
+    gap:5px!important;
+    justify-content:center!important;
+  }
+  .trow > div:not(.tkey) input{
+    width:72px!important;
+    font-size:0.85rem!important;
+    padding:6px 8px!important;
+  }
+  .tsep{display:none!important}            /* ocultar separador vertical */
+  .turno-label{font-size:0.65rem!important}
+
+  /* ── Grids internos ──────────────────────────────────────────────────────── */
+  .ug{grid-template-columns:1fr!important}
+  .mrow{grid-template-columns:1fr 1fr!important;gap:8px!important}
+  .cfg-row{grid-template-columns:1fr!important}
+  .hist-nums{grid-template-columns:1fr 1fr!important}
+
+  /* ── Historial ───────────────────────────────────────────────────────────── */
+  .hist-hdr{flex-direction:column!important;gap:8px!important}
+  .hist-act{flex-wrap:wrap!important;gap:4px!important}
+  .hist-act button{flex:1!important;min-width:80px!important;padding:8px 6px!important}
+  .hist-card{padding:12px 10px!important}
+  .hfilt{gap:6px!important;padding:10px!important}
+  .hfilt input,.hfilt select{font-size:0.78rem!important;padding:5px 8px!important}
+  #hf-search{min-width:100%!important}
+
+  /* ── Tablas ──────────────────────────────────────────────────────────────── */
+  th{padding:6px 5px!important;font-size:0.62rem!important}
+  td{padding:6px 5px!important;font-size:0.72rem!important}
+
+  /* ── Modal rol trabajador ────────────────────────────────────────────────── */
+  .rmod{width:99vw!important;margin:2px!important;max-height:97vh!important;border-radius:10px!important}
+  .rmod-body{padding:10px 8px!important}
+  .rmod-tabs{gap:2px!important;overflow-x:auto!important;flex-wrap:nowrap!important}
+  .rmod-tab{font-size:0.65rem!important;padding:6px 7px!important;white-space:nowrap!important;flex-shrink:0!important}
+  .rmod-desc-row{flex-direction:column!important;gap:4px!important}
+
+  /* ── Zona de carga ───────────────────────────────────────────────────────── */
+  .zh{min-height:70px!important;padding:16px 12px!important}
+  .okf{font-size:0.7rem!important}
+
+  /* ── Botones de acción del resumen ───────────────────────────────────────── */
+  #btn-sync-sheets{width:100%!important;font-size:0.78rem!important}
+  .tbr button,.tbr a{font-size:0.7rem!important;padding:5px 8px!important}
+
+  /* ── Formulario login ────────────────────────────────────────────────────── */
+  .lbox{padding:24px 16px!important;margin:10px!important}
+  .ltit{font-size:1.1rem!important}
 }
 </style>
 </head>
@@ -300,13 +368,13 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
     </div>
   </div>
   <div class="tabs">
-    <button class="tab on"  onclick="st('p1',this)">📁 Cargar</button>
-    <button class="tab"     onclick="st('p2',this)">💲 Tarifas</button>
-    <button class="tab"     onclick="st('p3',this)">👁 Vista previa</button>
-    <button class="tab"     onclick="st('p4',this)">🔍 Detalle</button>
-    <button class="tab"     onclick="st('p5',this)">📊 Resumen</button>
-    <button class="tab"     onclick="st('p6',this);renderHist();if(!loadHist().length)cargarDesdeSheets(true)">📚 Historial</button>
-    <button class="tab"     onclick="st('p7',this);renderInfoAdicional()">👤 Info Adicional</button>
+    <button class="tab on"  onclick="st('p1',this)">📁 <span class="tab-long">Cargar</span></button>
+    <button class="tab"     onclick="st('p2',this)">💲 <span class="tab-long">Tarifas</span></button>
+    <button class="tab"     onclick="st('p3',this)">👁 <span class="tab-long">Vista previa</span></button>
+    <button class="tab"     onclick="st('p4',this)">🔍 <span class="tab-long">Detalle</span></button>
+    <button class="tab"     onclick="st('p5',this)">📊 <span class="tab-long">Resumen</span></button>
+    <button class="tab"     onclick="st('p6',this);renderHist();if(!loadHist().length)cargarDesdeSheets(true)">📚 <span class="tab-long">Historial</span></button>
+    <button class="tab"     onclick="st('p7',this);renderInfoAdicional()">👤 <span class="tab-long">Adicional</span></button>
   </div>
   <div class="cnt">
 
@@ -2890,32 +2958,116 @@ async function histWA(cierreId, safeKey){
 function _openWAWithData(t,c,driveUrl){
   // Enriquecer con datos actuales de INFO_ADICIONAL
   _enrichFromIA(t);
-  var neto=+(t.neto||0).toFixed(2);
-  var bruto=+(t.bruto||t.total_tu||0).toFixed(2);
-  var desc=+(t.total_desc||0).toFixed(2);
-  var SEP='-------------------------';
-  var msg='*'+t.nombre+'*\n';
-  msg+=SEP+'\n';
-  msg+='📅 Período: '+c.rango+'\n';
-  msg+='🏢 '+c.cargo+'\n';
-  if(t.sector) msg+=sectEmoji(t.sector)+' Sector: '+t.sector+'\n';
-  msg+=SEP+'\n';
-  if(t.hrsT>0)   msg+='⏱ Horas: '+t.hrsT.toFixed(2)+'h → $'+( t.total_tu_h||0).toFixed(2)+'\n';
-  if(t.lbsT>0)   msg+='📦 Avance: '+t.lbsT.toFixed(0)+' lb → $'+(t.total_tu_p||0).toFixed(2)+'\n';
-  msg+='🔥 *Total Bruto: $'+bruto+'*\n';
-  msg+=SEP+'\n';
-  if(t.desc_expreso>0) msg+='🚌 Expreso: -$'+t.desc_expreso.toFixed(2)+'\n';
-  if(t.desc_bancario>0) msg+='🏦 Bancario: -$'+t.desc_bancario.toFixed(2)+'\n';
-  if(t.desc_anticipo>0) msg+='💵 Anticipo: -$'+t.desc_anticipo.toFixed(2)+'\n';
-  if(t.desc_multa>0)    msg+='⚠ Multa: -$'+t.desc_multa.toFixed(2)+'\n';
-  if(t.desc_otros>0)    msg+='➕ Otros: -$'+t.desc_otros.toFixed(2)+'\n';
-  if(desc>0) msg+='📊 Total Desc: -$'+desc+'\n';
-  msg+=SEP+'\n';
-  msg+='💰 *NETO A PAGAR: $'+neto+'*\n';
-  if(t.cuentaBanco||t.cuenta_banco) msg+='🏦 '+t.banco+' · '+(t.cuentaBanco||t.cuenta_banco)+'\n';
-  if(driveUrl) msg+='\n📄 *Comprobante:* '+driveUrl+'\n';
-  msg+=SEP+'\n_CUADRILLA JESSICA_';
 
+  var SEP='--------------------';
+  var LIN='  ──────────────';
+  var msg='*CUADRILLA JESSICA - ROL DE PAGO*\n'+SEP+'\n';
+  msg+='*Colaborador:* '+t.nombre+'\n';
+  msg+='*Cédula:*     '+(t.cedula||'—')+'\n';
+  msg+='*Cargo:*      '+(c.cargo||'CUADRILLA')+'\n';
+  if(t.sector) msg+='*Sector:*     '+sectEmoji(t.sector)+' '+t.sector+'\n';
+  if(t.celular) msg+='*Celular:*    '+t.celular+'\n';
+  msg+='*Período:*    '+(c.rango||c.id||'')+'\n';
+  msg+=SEP+'\n';
+
+  // ── Horas trabajadas (línea por línea) ────────────────────────────────────
+  var linH=t.lineasH||t.lH||[];
+  var linP=t.lineasP||t.lP||[];
+  var tH=+(t.total_tu_h||0), tP=+(t.total_tu_p||0), bonus=+(t.bonusAvance||0);
+  var hrsT=+(t.hrsT||0), lbsT=+(t.lbsT||0);
+
+  if(linH.length){
+    msg+='\n*⏱ HORAS TRABAJADAS*\n';
+    var sortedH=[].concat(linH).sort(function(a,b){
+      return (a.fecha_sort||a.fecha||'')>(b.fecha_sort||b.fecha||'')?1:-1;});
+    sortedH.forEach(function(l){
+      var tk=(l.turno||'').toUpperCase()==='NOCTURNO'?'🌙':'☀️';
+      var f=String(l.fecha||'').substring(0,10);
+      var h=+(l.horas||0);
+      var tar=+(l.tarifa||0);
+      var pg=+(l.pago||0);
+      var ing=l.hora_ing?(' '+l.hora_ing):'';
+      var sal=l.hora_sal?(' → '+l.hora_sal):'';
+      var hor=(ing||sal)?(ing+sal):'';
+      msg+='  '+tk+' '+f+'  '+(l.area||'')+'\n';
+      msg+='     '+h.toFixed(2)+'h × $'+tar.toFixed(2)+' = $'+pg.toFixed(2)+(hor?'  🕐'+hor:'')+'\n';
+    });
+    msg+=LIN+'\n';
+    msg+='  *Total: '+hrsT.toFixed(2)+'h  →  $'+tH.toFixed(2)+'*\n';
+  } else if(hrsT>0){
+    msg+='\n*⏱ Horas:* '+hrsT.toFixed(2)+'h  →  *$'+tH.toFixed(2)+'*\n';
+  }
+
+  // ── Producción / avance ────────────────────────────────────────────────────
+  if(linP.length){
+    msg+='\n*📦 PRODUCCIÓN*\n';
+    // Agrupar por fecha + proceso
+    var gp={};
+    linP.forEach(function(l){
+      var k=(l.fecha||'')+'|'+(l.tipo_proceso||'');
+      if(!gp[k]) gp[k]={fecha:String(l.fecha||'').substring(0,10),proc:l.tipo_proceso||'',lb:0,pg:0};
+      gp[k].lb+=+(l.peso||0); gp[k].pg+=+(l.pago||0);
+    });
+    Object.values(gp).sort(function(a,b){return a.fecha>b.fecha?1:-1;}).forEach(function(v){
+      msg+='  '+v.fecha+'  '+v.proc+'  '+v.lb.toFixed(2)+' lb  → $'+v.pg.toFixed(2)+'\n';
+    });
+    msg+=LIN+'\n';
+    var tAvance=tP+bonus;
+    if(bonus>0) msg+='  ⭐ Bono: +$'+bonus.toFixed(2)+'\n';
+    msg+='  *Total: '+lbsT.toFixed(2)+' lb  →  $'+tAvance.toFixed(2)+'*\n';
+  } else if(lbsT>0){
+    msg+='\n*📦 Avance:* '+lbsT.toFixed(0)+' lb  →  *$'+(tP+bonus).toFixed(2)+'*\n';
+  }
+
+  // ── Bruto ─────────────────────────────────────────────────────────────────
+  var bruto=+(t.bruto||t.total_tu||0);
+  var dias=+(t.diasTrab||t.dias_trab||0);
+  msg+='\n'+SEP+'\n';
+  msg+='*💰 BRUTO: $'+bruto.toFixed(2)+'*\n';
+
+  // ── Descuentos ─────────────────────────────────────────────────────────────
+  var anti=+(t.desc_anticipo||0), multa=+(t.desc_multa||0);
+  var otros=+(t.desc_otros||0), obs=t.desc_obs||'';
+  var td=+(t.total_desc||0);
+  if(td>0){
+    msg+='\n*Descuentos:*\n';
+    if(t.desc_expreso>0){
+      var edDia=dias>0?+(t.desc_expreso/dias).toFixed(2):0;
+      msg+='  🚌 Expreso '+(t.sector||'')+(dias&&edDia?' ('+dias+'d×$'+edDia+')':'')+': -$'+t.desc_expreso.toFixed(2)+'\n';
+    }
+    if(t.desc_bancario>0) msg+='  🏦 Transferencia: -$'+t.desc_bancario.toFixed(2)+'\n';
+    if(anti>0)  msg+='  💰 Anticipo: -$'+anti.toFixed(2)+'\n';
+    if(multa>0) msg+='  ⚠ Multa: -$'+multa.toFixed(2)+'\n';
+    if(otros>0) msg+='  ➕ Otros: -$'+otros.toFixed(2)+'\n';
+    if(obs)     msg+='  ('+obs+')\n';
+  }
+
+  // ── Neto ──────────────────────────────────────────────────────────────────
+  var neto=+(t.neto||(bruto-td));
+  msg+='\n'+SEP+'\n';
+  msg+='*💵 NETO A COBRAR: $'+neto.toFixed(2)+'*\n';
+
+  // ── Cuenta bancaria ────────────────────────────────────────────────────────
+  var cta=t.cuentaBanco||t.cuenta_banco||'';
+  if(cta){
+    msg+='  Cta: '+cta+' · '+(t.banco||'');
+    if(t.tipoCuenta) msg+=' ('+t.tipoCuenta+')';
+    msg+='\n';
+    var prop=t.nombreProp||'';
+    if(prop){
+      msg+='  Titular: '+prop;
+      if(t.cedProp) msg+=' · C.I. '+t.cedProp;
+      msg+='\n';
+    }
+  }
+
+  // ── PDF ───────────────────────────────────────────────────────────────────
+  if(driveUrl) msg+='\n📄 *Comprobante PDF:* '+driveUrl+'\n';
+  else msg+='\n_(Genera el PDF desde el comprobante)_\n';
+  msg+=SEP+'\n';
+  msg+='_CUADRILLA JESSICA_';
+
+  // ── Abrir WhatsApp ─────────────────────────────────────────────────────────
   var rawTel=String(t.celular||'').replace(/[^0-9]/g,'');
   var waNum='';
   if(rawTel.length===10&&rawTel.startsWith('0')) waNum='593'+rawTel.substring(1);
@@ -2928,7 +3080,6 @@ function _openWAWithData(t,c,driveUrl){
     :'https://wa.me/?text='+encodeURIComponent(msg);
   window.open(url,'_blank');
 }
-
 /* ── publicarCierre: alias de guardarEnSheets ──────────────────────────── */
 function publicarCierre(cierreId){
   guardarEnSheets(cierreId);
