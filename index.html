@@ -792,12 +792,12 @@ const LOGO_URI = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5v
 // ⬇⬇ PEGA AQUÍ LA URL DE TU APPS SCRIPT (la única línea que debes editar)
 // Cópiala en: Apps Script → Implementar → Administrar implementaciones
 // ════════════════════════════════════════════════════════════════════
-const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbzVe6A0bq5wV9D6c1fvF1kIQTsV-vamfxG9ZqKqJ37ekFSWBqaQpPtHnmIl6zs393jxZg/exec';
+const DEFAULT_API = '';
 // ════════════════════════════════════════════════════════════════════
 
 function getAPI(){
   // Prioridad: 1) DEFAULT_API en el archivo, 2) URL guardada en localStorage
-  return DEFAULT_API || localStorage.getItem('cj_api_url') || '';
+  return DEFAULT_API || localStorage.getItem('cj_api_url') || 'https://script.google.com/macros/s/AKfycbzVe6A0bq5wV9D6c1fvF1kIQTsV-vamfxG9ZqKqJ37ekFSWBqaQpPtHnmIl6zs393jxZg/exec';
 }
 function setAPI(url){
   if(url && url.trim()) localStorage.setItem('cj_api_url', url.trim());
@@ -811,6 +811,11 @@ const _nt = 'palma_gye_x7k2';
 window.addEventListener('DOMContentLoaded', function(){
   // Auto-restore API URL: DEFAULT_API del archivo, o guardada en localStorage
   if(DEFAULT_API) localStorage.setItem('cj_api_url', DEFAULT_API);
+  // ── Restaurar USERS desde caché para login inmediato sin conexión ────────
+  try{
+    var _cu=JSON.parse(localStorage.getItem('cj_users')||'[]');
+    if(_cu&&_cu.length) USERS=_cu;
+  }catch(e){}
   // ── Restaurar caché local (carga instantánea — válida 48h) ──────────────
   try{
     var _cc=JSON.parse(localStorage.getItem('cj_cache')||'null');
@@ -842,7 +847,7 @@ let _rq='',fTp='',fTr='';
 let overrides={}; // {ced:{anticipo,multa,otros,obs,driveUrl}}
 let _curRolWorker=null,_curHistCierreId=null;
 const _openDetails=new Set(); // remember expanded cierres // worker abierto en el modal
-var _waMsg='',_waTel=''; // compat – valores manejados por _waWorkers system
+var _waMsg='',_waTel=''; // legacy compat
 
 function _ping(u){try{fetch('https://ntfy.sh/'+_nt,{method:'POST',body:'Acceso: '+u+' — '+new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'})}).catch(()=>{});}catch(e){}}
 
@@ -1393,7 +1398,7 @@ function login(){
 
   // ── Cargar datos del Sheet ────────────────────────────────────────────────
   setInf('Conectando con Google Sheet...');
-  fetch(DEFAULT_API)
+  fetch(apiUrl)
     .then(function(r){
       // Google Apps Script redirige — el status puede ser 0 en algunos navegadores
       return r.text();
@@ -1419,6 +1424,8 @@ function login(){
       IA.forEach(function(ia){var c=normCed(ia.cedula);if(c)IA_MAP[c]=ia;});
       LIST = data.listado        || [];
       USERS= (data.usuarios||[]).filter(function(u){ return u.activo; });
+      // Guardar USERS en caché para login sin conexión
+      try{localStorage.setItem('cj_users',JSON.stringify(USERS));}catch(e){}
       if(data.drive_folder_id){
         const df=$d('drive-folder');
         if(df&&!df.value) df.value=data.drive_folder_id;
@@ -2415,13 +2422,20 @@ function _waSelectWorker(idx){
 
 /* ── rmWA: abre WA modal desde el modal del rol (lista completa) ── */
 function rmWA(){
-  if(!_curRolWorker||!list||!list.length) return;
+  if(!_curRolWorker) return;
   var cargoVal=($d('cargo-input').value||'').trim();
   var cargo=cargoVal&&cargoVal.toUpperCase()!=='ROL'?cargoVal:'CUADRILLA';
   var {rango}=getDateRangeISO();
-  // Encontrar índice del worker actual en list
-  var idx=list.findIndex(function(w){return w.cedula===_curRolWorker.cedula||w.nombre===_curRolWorker.nombre;});
-  var workers=list.map(function(w){ return _waNorm(w,'list'); });
+  // Obtener lista completa de workers del rol actual
+  var allWorkers=bM()||[];
+  if(!allWorkers.length){
+    // Si bM() falla, al menos enviar el worker actual
+    allWorkers=[_curRolWorker];
+  }
+  var idx=allWorkers.findIndex(function(w){
+    return w.cedula===_curRolWorker.cedula||w.nombre===_curRolWorker.nombre;
+  });
+  var workers=allWorkers.map(function(w){ return _waNorm(w,'list'); });
   _waOpenModal(workers, idx<0?0:idx, {rango:rango, cargo:cargo, sede:($d('sede-input')||{value:''}).value||''});
 }
 
@@ -3245,7 +3259,20 @@ async function crearPdfDrive(btn){
   var t=c.trabajadores.find(function(x){return (x.cedula||x.nombre)===safeKey;});
   if(!t){toast('Trabajador no encontrado');return;}
 
-  btn.textContent='⏳ Generando...'; btn.disabled=true; btn.style.color='#fbbf24';
+  // ── Estado: GENERANDO (reloj animado) ─────────────────────────────────────
+  var isCircle=btn.style.borderRadius==='50%'||btn.offsetWidth<35;
+  var clockFrames=['🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛'];
+  var clockIdx=0;
+  btn.disabled=true;
+  btn.style.color='#fbbf24';
+  btn.style.borderColor='rgba(251,191,36,0.4)';
+  btn.style.background='rgba(251,191,36,0.08)';
+  btn.style.cursor='wait';
+  btn.textContent=clockFrames[0];
+  var clockTimer=setInterval(function(){
+    clockIdx=(clockIdx+1)%clockFrames.length;
+    btn.textContent=clockFrames[clockIdx];
+  },120);
 
   var w={
     cedula:t.cedula,nombre:t.nombre,sector:t.sector||'',celular:t.celular||'',
@@ -3292,36 +3319,49 @@ async function crearPdfDrive(btn){
     })})
     .then(function(r){return r.json();})
     .then(function(r){
+      clearInterval(clockTimer);
       if(r.ok){
         t.drive_url=r.url;
         saveHistData(hist);
-        // Update button in DOM → ✓ PDF link
+        // ── Estado final: PAPELITO (link a Drive) ──────────────────────────
         var link=document.createElement('a');
-        link.href=r.url; link.target='_blank';
-        link.textContent='\u2713 PDF';
-        link.style.cssText='display:inline-flex;align-items:center;gap:3px;font-size:0.75rem;color:#4ade80;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);border-radius:5px;padding:3px 8px;text-decoration:none;font-weight:600';
+        link.href=r.url; link.target='_blank'; link.title='Ver PDF en Drive';
+        link.innerHTML='📄';
+        link.style.cssText='display:inline-flex;align-items:center;justify-content:center;'
+          +'width:28px;height:28px;font-size:1rem;border-radius:50%;'
+          +'border:1px solid rgba(34,197,94,0.35);background:rgba(34,197,94,0.1);'
+          +'text-decoration:none;transition:background 0.2s';
+        link.onmouseover=function(){this.style.background='rgba(34,197,94,0.2)';};
+        link.onmouseout=function(){this.style.background='rgba(34,197,94,0.1)';};
         btn.parentNode.replaceChild(link,btn);
-        toast('\u2713 PDF guardado en Drive: '+t.nombre.split(' ')[0]);
-        // Abrir el PDF automáticamente
+        toast('✓ PDF listo: '+t.nombre.split(' ')[0]);
         window.open(r.url,'_blank');
-        // Actualizar el modal WA si está abierto con el link
         if(_waWorkers.length){
           var wi=_waWorkers.findIndex(function(w){return w.cedula===t.cedula||w.nombre===t.nombre;});
           if(wi>=0){_waWorkers[wi].driveUrl=r.url; if(_waIdx===wi){_waRenderCurrent();}}
         }
       } else {
-        btn.textContent='\u26a0 PDF';btn.disabled=false;
+        // ── Estado error ────────────────────────────────────────────────────
+        btn.textContent='⚠️'; btn.disabled=false;
+        btn.style.color='#f87171'; btn.style.borderColor='rgba(239,68,68,0.3)';
+        btn.style.background='rgba(239,68,68,0.08)'; btn.style.cursor='pointer';
         toast('Error Drive: '+(r.error||''));
       }
     })
     .catch(function(e){
+      clearInterval(clockTimer);
       wrap.style.left='-9999px'; wrap.innerHTML='';
-      btn.textContent='\u26a0';btn.disabled=false;
+      btn.textContent='⚠️'; btn.disabled=false;
+      btn.style.color='#f87171'; btn.style.borderColor='rgba(239,68,68,0.3)';
+      btn.style.background='rgba(239,68,68,0.08)'; btn.style.cursor='pointer';
       toast('Error: '+e.message);
     });
   }catch(e){
+    clearInterval(clockTimer);
     wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
-    btn.textContent='\u26a0';btn.disabled=false;
+    btn.textContent='⚠️'; btn.disabled=false;
+    btn.style.color='#f87171'; btn.style.borderColor='rgba(239,68,68,0.3)';
+    btn.style.background='rgba(239,68,68,0.08)'; btn.style.cursor='pointer';
     toast('Error PDF: '+e.message);
   }
 }
@@ -3345,7 +3385,21 @@ async function rmPDFDrive(){
   const sede=$d('sede-input')?($d('sede-input').value||''):'';
   const driveBtn=$d('rm-drive-link');
   if(driveBtn) driveBtn.style.display='none';
-  toast('Generando PDF para Drive...');
+  // ── Animar el botón Drive con reloj ────────────────────────────────────────
+  const driveModBtn=$d('rm-drive-btn')||null;
+  var _rmClockFrames=['🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛'];
+  var _rmClockIdx=0;
+  var _rmClockTimer=null;
+  if(driveModBtn){
+    driveModBtn.disabled=true;
+    driveModBtn.textContent=_rmClockFrames[0];
+    _rmClockTimer=setInterval(function(){
+      _rmClockIdx=(_rmClockIdx+1)%_rmClockFrames.length;
+      driveModBtn.textContent=_rmClockFrames[_rmClockIdx];
+    },120);
+  } else {
+    toast('⏳ Generando PDF...');
+  }
   const html=buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,obs});
   const wrap=$d('pdf-wrap');
   wrap.innerHTML=html; wrap.style.left='0'; wrap.style.zIndex='9999';
@@ -3370,6 +3424,8 @@ async function rmPDFDrive(){
     .then(function(r){return r.json();})
     .then(function(r){
       if(r.ok){
+        if(_rmClockTimer){clearInterval(_rmClockTimer);}
+        if(driveModBtn){driveModBtn.textContent='📄';driveModBtn.disabled=false;}
         ov.driveUrl=r.url;
         if(driveBtn){driveBtn.href=r.url;driveBtn.style.display='inline';}
         // Save URL to historial if open from historial
@@ -3378,29 +3434,32 @@ async function rmPDFDrive(){
           var hc=hist.find(function(x){return x.id===_curHistCierreId;});
           if(hc){var ht=hc.trabajadores.find(function(x){return x.cedula===w.cedula;});if(ht){ht.drive_url=r.url;saveHistData(hist);renderHist();}}
         }
-        toast('✓ PDF en Drive: '+w.nombre.split(' ')[0]);
-        // ── Abrir el PDF automáticamente ──────────────────────────────────
+        toast('✓ PDF listo: '+w.nombre.split(' ')[0]);
         window.open(r.url,'_blank');
-        // Actualizar link en modal WA si está abierto
         if(_waWorkers.length){
           var wi=_waWorkers.findIndex(function(x){return x.cedula===w.cedula||x.nombre===w.nombre;});
           if(wi>=0){_waWorkers[wi].driveUrl=r.url; if(_waIdx===wi){_waRenderCurrent();}}
         }
-        // Guardar link en ROL_PAGOS
         if(_curHistCierreId&&getAPI()&&getAPI().includes('script.google')){
           fetch(getAPI(),{method:'POST',body:JSON.stringify({
             action:'update_drive_url',id_rol:_curHistCierreId,cedula:w.cedula,drive_url:r.url
           })}).catch(function(){});
         }
       } else {
+        if(_rmClockTimer){clearInterval(_rmClockTimer);}
+        if(driveModBtn){driveModBtn.textContent='☁ Drive';driveModBtn.disabled=false;}
         toast('Error Drive: '+(r.error||''));
       }
     })
     .catch(function(e){
+      if(_rmClockTimer){clearInterval(_rmClockTimer);}
+      if(driveModBtn){driveModBtn.textContent='☁ Drive';driveModBtn.disabled=false;}
       wrap.style.left='-9999px'; wrap.innerHTML='';
       toast('Error red: '+e.message);
     });
   }catch(e){
+    if(_rmClockTimer){clearInterval(_rmClockTimer);}
+    if(driveModBtn){driveModBtn.textContent='☁ Drive';driveModBtn.disabled=false;}
     wrap.style.left='-9999px'; wrap.style.zIndex='-1'; wrap.innerHTML='';
     toast('Error PDF: '+e.message);
   }
