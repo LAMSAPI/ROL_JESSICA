@@ -2555,10 +2555,39 @@ function guardarCierre(){
   }));
   // localStorage
   const cierre={id:idRol,rango,fecha_guardado:new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),cargo,sede,periodo_ini:ini,periodo_fin:fin,trabajadores:rolPagos.map((rp,i)=>{const w=list[i];const ov=getOv(w.cedula);return{...rp,id_rol:undefined,total_emp_h:+w.eH.toFixed(2),total_tu_h:+w.tH.toFixed(2),total_emp_p:+w.eP.toFixed(2),total_tu_p:+w.tP.toFixed(2),bonusAvance:w.bonusAvance,total_emp:+(w.eH+w.eP).toFixed(2),total_tu:w.bruto,margen:+(w.eH+w.eP-w.bruto).toFixed(2),lineasH:w.lineasH,lineasP:w.lineasP,estado:'pendiente'};})};
-  const hist=loadHist();const eIdx=hist.findIndex(x=>x.id===idRol);if(eIdx>=0)hist[eIdx]=cierre;else hist.unshift(cierre);saveHistData(hist);
+
+  // ── Verificar si ya existe un cierre con el mismo ID ─────────────────────
+  const hist=loadHist();
+  const eIdx=hist.findIndex(x=>x.id===idRol);
+  if(eIdx>=0){
+    // Ya existe — pedir confirmación antes de sobreescribir
+    if(!confirm(
+      '⚠️ Ya existe un rol guardado para este período:\n\n'+
+      '"'+rango+'" — '+cargo+'\n\n'+
+      'Si continúas se REEMPLAZARÁN los datos en Google Sheets.\n'+
+      'Los estados de pago y links de PDF se perderán.\n\n'+
+      '¿Deseas continuar y sobreescribir?'
+    )) return;
+    hist[eIdx]=cierre;
+    toast('♻ Sobreescribiendo rol existente...');
+  } else {
+    hist.unshift(cierre);
+  }
+  saveHistData(hist);
+
   const btn=$d('bguardar');btn.disabled=true;btn.textContent='Guardando...';
   fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rolPagos,rol_detalle:rolDetalle})})
-    .then(r=>r.json()).then(function(r){btn.textContent=r.ok?('✓ Guardado ('+r.saved+')'):'✓ Local';toast(r.ok?('✓ '+r.saved+' en Sheets · Revisa Historial'):'Error en Sheets. Guardado local.');document.querySelectorAll('.tab')[5].click();renderHist();}).catch(function(){btn.textContent='✓ Local';toast('Sin conexión. Guardado local.');document.querySelectorAll('.tab')[5].click();renderHist();});
+    .then(r=>r.json()).then(function(r){
+      btn.textContent=r.ok?('✓ '+(eIdx>=0?'Actualizado':'Guardado')+' ('+r.saved+')'):'✓ Local';
+      toast(r.ok?('✓ '+r.saved+' en Sheets · Revisa Historial'):'Error en Sheets. Guardado local.');
+      document.querySelectorAll('.tab')[5].click();
+      renderHist();
+    }).catch(function(){
+      btn.textContent='✓ Local';
+      toast('Sin conexión. Guardado local.');
+      document.querySelectorAll('.tab')[5].click();
+      renderHist();
+    });
 }
 
 // ── Historial ─────────────────────────────────────────────────────────────────
@@ -3579,48 +3608,46 @@ function cargarDesdeSheets(silent){
       local.forEach(function(c){localMap[c.id]=c;});
 
       var merged=cierresSheets.map(function(cs){
-        // Limpiar fechas en lineasH/lineasP que vienen de Sheets
+        // Limpiar y enriquecer lineasH/lineasP que vienen de Sheets (ROL_DETALLE)
         cs.trabajadores.forEach(function(t){
           t.lineasH.forEach(function(l){
-            l.fecha=_cleanFecha(l.fecha);
-            l.fechaSort=l.fechaSort||l.fecha;
-            // Calcular extraHora desde tarBase y tarTu
-            l.extraHora   = l.tarBase>0 ? +(l.tarTu-l.tarBase).toFixed(4) : 0;
+            if(l.fecha)   l.fecha    = _cleanFecha(l.fecha);
+            if(l.fechaSort)l.fechaSort= l.fechaSort;
+            else           l.fechaSort= l.fecha;
+            l.extraHora   = (l.tarBase>0&&l.tarTu>l.tarBase) ? +(l.tarTu-l.tarBase).toFixed(4) : 0;
             l.extraAvance = 0;
           });
           t.lineasP.forEach(function(l){
-            l.fecha=_cleanFecha(l.fecha);
-            l.fechaSort=l.fechaSort||l.fecha;
-            l.extraAvance = l.tarBase>0 ? +(l.tarTu-l.tarBase).toFixed(4) : 0;
+            if(l.fecha)   l.fecha    = _cleanFecha(l.fecha);
+            if(!l.fechaSort)l.fechaSort = l.fecha;
+            l.extraAvance = (l.tarBase>0&&l.tarTu>l.tarBase) ? +(l.tarTu-l.tarBase).toFixed(4) : 0;
             l.extraHora   = 0;
+            // Asegurar que cant no sea 0 si valTu y tarTu son válidos
+            if(!l.cant && l.valTu && l.tarTu) l.cant = +(l.valTu/l.tarTu).toFixed(2);
           });
         });
 
-        // Suplementar con datos locales (campos que no están en Sheets)
+        // Suplementar campos extras desde local (no disponibles en Sheets)
         var loc=localMap[cs.id];
         if(loc){
           cs.trabajadores=cs.trabajadores.map(function(t){
             var lt=loc.trabajadores&&loc.trabajadores.find(function(x){
-              return x.cedula===t.cedula||x.nombre===t.nombre;
+              return normCed(x.cedula)===normCed(t.cedula)||x.nombre===t.nombre;
             });
             if(lt){
-              // Campos extras solo disponibles en local
-              t.nombreProp=t.nombreProp||lt.nombreProp||'';
-              t.cedProp   =t.cedProp||lt.cedProp||'';
-              t.tipoCuenta=t.tipoCuenta||lt.tipoCuenta||'';
-              t.expresoDia=t.expresoDia||lt.expresoDia||0;
-              // Si Sheets tiene lineasH/P → usarlas (source of truth)
-              // Si Sheets las tiene vacías (ROL_DETALLE no encontrado) → usar local
-              if(!t.lineasH.length && lt.lineasH && lt.lineasH.length){
+              // Campos extras solo en local
+              if(!t.nombreProp) t.nombreProp = lt.nombreProp||'';
+              if(!t.cedProp)    t.cedProp    = lt.cedProp||'';
+              if(!t.tipoCuenta) t.tipoCuenta = lt.tipoCuenta||'';
+              if(!t.expresoDia) t.expresoDia = lt.expresoDia||0;
+              // Solo usar local si Sheets devolvió lineas vacías
+              if(!t.lineasH.length && lt.lineasH&&lt.lineasH.length)
                 t.lineasH=lt.lineasH.map(function(l){if(l.fecha)l.fecha=_cleanFecha(l.fecha);return l;});
-              }
-              if(!t.lineasP.length && lt.lineasP && lt.lineasP.length){
+              if(!t.lineasP.length && lt.lineasP&&lt.lineasP.length)
                 t.lineasP=lt.lineasP.map(function(l){if(l.fecha)l.fecha=_cleanFecha(l.fecha);return l;});
-              }
             }
             return t;
           });
-          // Preservar flag de pendiente local
           if(loc._pendiente_sheets) cs._pendiente_sheets=true;
         }
         return cs;
