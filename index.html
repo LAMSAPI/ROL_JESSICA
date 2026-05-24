@@ -1703,7 +1703,6 @@ function bM(){
     if(!m[k]){
       const ia=getInfoAd(r.cedula);
       const li=getListado(r.cedula);
-      // Sector: 1) LISTADO por cédula, 2) columna SECTOR en archivos subidos
       var _liSect=(li&&li.sector)?String(li.sector).trim():'';
         const sector=_liSect||String(r['SECTOR']||r['SECTOR ']||r['CIUDAD']||'').trim()||'';
       const celular=getCelularByCedula(r.cedula)||(li&&li.celular)||'';
@@ -1713,30 +1712,43 @@ function bM(){
       const cuentaBanco=(ia&&aprobado)?ia.cuenta_banco:'';
       const banco=(ia&&aprobado)?ia.banco:'';
       const tipoCuenta=(ia&&aprobado)?ia.tipo_cuenta:'';
-      // Propietario: si nombre_prop está vacío → el titular es el propio trabajador
       const nombreProp=(ia&&aprobado)?(ia.nombre_prop||''):'';
-      const cedProp   =(ia&&aprobado)?(ia.cedula_prop||''):'';  // fix: ced_prop→cedula_prop
+      const cedProp   =(ia&&aprobado)?(ia.cedula_prop||''):'';
       const DESC_BANCO_FIJO = 1;
       const descBancario = (ia&&aprobado&&cuentaBanco) ? DESC_BANCO_FIJO : 0;
       var _liCargo=(li&&li.cargo)?li.cargo.trim():'';
       m[k]={cedula:r.cedula,nombre:r.nombre,sector,celular,sede,cargo:_liCargo,aprobacion,cuentaBanco,banco,tipoCuenta,nombreProp,cedProp,descBancario,expresoDia:getExpresoDia(sector),hT:0,eH:0,tH:0,lT:0,eP:0,tP:0,lineasH:[],lineasP:[],fechas:[]};
     }
+
+    // ── SIEMPRE recalcular tarTu y valTu con el FE actual ────────────────────
+    // Esto permite que cambios en Feriados se apliquen sin re-subir el archivo
+    var _ferActual = getFeriado(r.fechaSort);
+    var _recalcTarTu, _recalcValTu;
+    if(r.tipo==='HORA'){
+      var _extraH = _ferActual ? (_ferActual.extra_hora_pg||0) : 0;
+      _recalcTarTu = +(r.tarBase + _extraH).toFixed(4);
+      _recalcValTu = +(r.cant * _recalcTarTu).toFixed(4);
+    } else {
+      var _extraA = _ferActual ? (_ferActual.extra_avance_pg||0) : 0;
+      _recalcTarTu = +(r.tarBase + _extraA).toFixed(4);
+      _recalcValTu = +(r.cant * _recalcTarTu).toFixed(4);
+    }
+    // Actualizar el registro con los valores recalculados (para que la tabla Detalle sea correcta)
+    r.tarTu     = _recalcTarTu;
+    r.valTu     = _recalcValTu;
+    r.esHoliday = !!_ferActual;
+    r.extraHora   = r.tipo==='HORA'  ? (_ferActual?_ferActual.extra_hora_pg||0:0)  : 0;
+    r.extraAvance = r.tipo==='PROD'  ? (_ferActual?_ferActual.extra_avance_pg||0:0): 0;
+
     if(r.fechaSort&&!m[k].fechas.includes(r.fechaSort))m[k].fechas.push(r.fechaSort);
-    if(r.tipo==='HORA'){m[k].hT+=r.cant;m[k].eH+=r.valEmp;m[k].tH+=r.valTu;m[k].lineasH.push(r);}
-    else{m[k].lT+=r.cant;m[k].eP+=r.valEmp;m[k].tP+=r.valTu;m[k].lineasP.push(r);}
+    if(r.tipo==='HORA'){m[k].hT+=r.cant;m[k].eH+=r.valEmp;m[k].tH+=_recalcValTu;m[k].lineasH.push(r);}
+    else              {m[k].lT+=r.cant;m[k].eP+=r.valEmp;m[k].tP+=_recalcValTu;m[k].lineasP.push(r);}
   });
   Object.values(m).forEach(w=>{
-    // bonusAvance = 0: el extra de feriado ya está incluido en tarTu → valTu → tP
-    // Se calcula solo para mostrar cuánto fue el bono en comprobantes (display only)
-    var _bonusDisplay=0;
-    w.lineasP.forEach(function(l){
-      if(l.esHoliday&&l.extraAvance>0) _bonusDisplay+=+(l.extraAvance*l.cant).toFixed(4);
-    });
-    w.bonusAvance=0; // NO se suma a tP (ya está incluido)
-    w._bonusDisplay=+_bonusDisplay.toFixed(2); // solo para mostrar en pantalla
+    w.bonusAvance=0;
     w.diasTrab=w.fechas.length;
     w.descExpreso=+(w.expresoDia*w.diasTrab).toFixed(2);
-    w.bruto=+(w.tH+w.tP).toFixed(2); // correcto: tP ya incluye el extra feriado
+    w.bruto=+(w.tH+w.tP).toFixed(2);
   });
   return Object.values(m).sort((a,b)=>(b.eH+b.eP)-(a.eH+a.eP));
 }
@@ -3067,20 +3079,36 @@ function svFer(inp){
   inp.style.borderColor='#f59e0b';
   fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'update_feriado',id:f.id,fecha:f.fecha,extra_hora_pg:f.extra_hora_pg,extra_avance_pg:f.extra_avance_pg})})
     .then(function(r){return r.json();})
-    .then(function(r){inp.style.borderColor=r.ok?'#22c55e':'#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);if(r.ok)toast('✓ Feriado '+f.fecha);})
+    .then(function(r){
+      inp.style.borderColor=r.ok?'#22c55e':'#ef4444';
+      setTimeout(function(){inp.style.borderColor='';},1800);
+      if(r.ok){
+        toast('✓ Feriado '+f.fecha+' actualizado');
+        // Re-renderizar vista previa si hay datos cargados
+        if(det.length>0){ try{rPrev();}catch(e){} try{rD4();}catch(e){} try{rS5();}catch(e){} }
+      }
+    })
     .catch(function(e){inp.style.borderColor='#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);});
 }
+
 /* ── svFerFecha: cambia fecha de feriado en Sheet ──────────────────────── */
 function svFerFecha(inp){
   var fi=parseInt(inp.dataset.fi),v=inp.value;
   var f=FE[fi]; if(!f) return;
-  var oldFecha=f.fecha; // guardar fecha anterior para que codex la encuentre
+  var oldFecha=f.fecha;
   f.fecha=v;
   inp.style.borderColor='#f59e0b';
-  // Enviamos id Y old_fecha para que el codex pueda encontrar la fila aunque la fecha cambie
   fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'update_feriado',id:f.id,fecha:oldFecha,new_fecha:v,extra_hora_pg:f.extra_hora_pg,extra_avance_pg:f.extra_avance_pg})})
     .then(function(r){return r.json();})
-    .then(function(r){inp.style.borderColor=r.ok?'#22c55e':'#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);if(r.ok)toast('✓ Fecha feriado → '+v);})
+    .then(function(r){
+      inp.style.borderColor=r.ok?'#22c55e':'#ef4444';
+      setTimeout(function(){inp.style.borderColor='';},1800);
+      if(r.ok){
+        toast('✓ Fecha feriado → '+v);
+        // Re-renderizar vista previa si hay datos cargados
+        if(det.length>0){ try{rPrev();}catch(e){} try{rD4();}catch(e){} try{rS5();}catch(e){} }
+      }
+    })
     .catch(function(){inp.style.borderColor='#ef4444';setTimeout(function(){inp.style.borderColor='';},1800);});
 }
 /* ── svExp: guarda tarifa expreso en Sheet ─────────────────────────────── */
@@ -3673,11 +3701,16 @@ function _recargarDatos(silent){
       try{localStorage.setItem('cj_cache',JSON.stringify({ts:Date.now(),TH:TH,TP:TP,FE:FE,TF:TF,IA:IA,LIST:LIST}));}catch(e){}
       if(!silent){
         renderTar();
-        toast('✓ Datos actualizados: '+TH.length+' áreas · '+TP.length+' tallas · '+LIST.length+' listado · '+IA.length+' adicional');
-        // Actualizar Info Adicional si está visible
+        toast('✓ Datos actualizados: '+TH.length+' áreas · '+TP.length+' tallas · '+LIST.length+' listado · '+IA.length+' adicional · '+FE.length+' feriados');
+        // Si hay datos cargados, re-renderizar con los nuevos feriados
+        if(det.length>0){
+          try{rPrev();}catch(e){}
+          try{rD4();}catch(e){}
+          try{rS5();}catch(e){}
+          toast('✓ Vista previa actualizada con nuevos feriados');
+        }
         if(document.getElementById('p7')&&document.getElementById('p7').classList.contains('on'))
           renderInfoAdicional();
-        // Actualizar Historial si está visible
         if(document.getElementById('p6')&&document.getElementById('p6').classList.contains('on'))
           renderHist();
       }
