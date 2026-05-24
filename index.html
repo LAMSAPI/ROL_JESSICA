@@ -639,6 +639,18 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
       <button class="mdcls" onclick="closeWA()">✕</button>
     </div>
     <div class="mdbody" id="wbody"></div>
+    <!-- Modo de envío -->
+    <div style="padding:10px 16px;background:rgba(0,0,0,0.2);border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:0.68rem;color:rgba(255,255,255,0.4);flex:1;min-width:60px">Modo:</span>
+      <button onclick="_waSetMode('detalle')" id="wa-mode-det"
+        style="flex:1;padding:5px 8px;font-size:0.72rem;border-radius:6px;border:1.5px solid #25d366;background:rgba(37,211,102,0.15);color:#25d366;cursor:pointer;font-family:var(--fn);font-weight:600">
+        📋 Detallado
+      </button>
+      <button onclick="_waSetMode('link')" id="wa-mode-link"
+        style="flex:1;padding:5px 8px;font-size:0.72rem;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;font-family:var(--fn)">
+        🔗 Solo link
+      </button>
+    </div>
     <div class="mdft">
       <button class="bcpy" onclick="copyWA()">📋 Copiar</button>
       <button class="bwas" onclick="sendWA()">
@@ -832,7 +844,40 @@ function _ping(u){try{fetch('https://ntfy.sh/'+_nt,{method:'POST',body:'Acceso: 
 const $d=id=>document.getElementById(id);
 function gn(v){if(!v&&v!==0)return 0;const n=parseFloat(String(v).replace(/[$,\s]/g,''));return isNaN(n)?0:n;}
 function trn(v){return v&&String(v).toUpperCase().includes('NOCT')?'NOCTURNO':'DIURNO';}
-function fdt(v){if(!v)return'';if(v instanceof Date)return v.toLocaleDateString('es-EC');const d=new Date(v);return isNaN(d)?String(v).substring(0,10):d.toLocaleDateString('es-EC');}
+function fdt(v){
+  if(!v)return'';
+  if(v instanceof Date)return v.toLocaleDateString('es-EC');
+  const d=new Date(v);
+  return isNaN(d)?String(v).substring(0,10):d.toLocaleDateString('es-EC');
+}
+
+/* _cleanFecha: convierte CUALQUIER formato de fecha a DD/MM/YYYY
+   Maneja: ISO "2026-05-14", toLocaleDateString "14/5/2026",
+           Date.toString() "Thu May 14 2026 02:00:00 GMT-0500..." */
+function _cleanFecha(v){
+  if(!v) return '';
+  var s=String(v).trim();
+  // Ya es DD/MM/YYYY o D/M/YYYY  → normalizar
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+    var p=s.split('/');
+    return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0')+'/'+p[2];
+  }
+  // ISO YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+    var ps=s.substring(0,10).split('-');
+    return ps[2]+'/'+ps[1]+'/'+ps[0];
+  }
+  // Cualquier otro (Date.toString, GMT string, etc.) → parsear con Date
+  var d=new Date(s);
+  if(!isNaN(d)){
+    var dd=String(d.getDate()).padStart(2,'0');
+    var mm=String(d.getMonth()+1).padStart(2,'0');
+    var yyyy=d.getFullYear();
+    return dd+'/'+mm+'/'+yyyy;
+  }
+  // Fallback: primeros 10 chars
+  return s.substring(0,10);
+}
 function fdtSort(v){
   if(!v)return'';let d=v instanceof Date?v:null;
   if(!d){d=new Date(v);if(isNaN(d)){const p=String(v).split('/');if(p.length===3)d=new Date(+p[2],+p[1]-1,+p[0]);}}
@@ -1696,7 +1741,7 @@ function rD4(){
   const tb=$d('tb4');if(!data.length){tb.innerHTML='<tr class="er"><td colspan="13">Sin registros</td></tr>';return;}
   tb.innerHTML=data.map(r=>{
     const fb=r.esHoliday?`<span class="badge bpu">🎉+$${r.tipo==='HORA'?r.extraHora.toFixed(2):r.extraAvance.toFixed(2)}</span>`:'—';
-    return`<tr><td style="color:var(--tx2)">${r.fecha}</td><td class="vm">${r.cedula}</td><td>${r.nombre}</td><td><span class="badge ${r.turno==='NOCTURNO'?'bno':'bdi'}">${r.turno==='NOCTURNO'?'Noct':'Diur'}</span></td><td><span class="badge ${r.tipo==='HORA'?'bbl':'btl'}">${r.tipo}</span></td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.det2}</td><td class="vm">${r.cant.toFixed(2)}</td><td style="color:var(--tx3)">${r.ud}</td><td style="color:var(--tl);font-family:var(--mo)">$${r.tarTu.toFixed(3)}</td><td class="va">$${r.valTu.toFixed(2)}</td><td class="vm" style="color:var(--tx2)">$${r.valEmp.toFixed(2)}</td><td class="${r.dif>=0?'vg':'vr'}">$${r.dif.toFixed(2)}</td><td>${fb}</td></tr>`;
+    return`<tr><td style="color:var(--tx2)">${_cleanFecha(r.fecha)}</td><td class="vm">${r.cedula}</td><td>${r.nombre}</td><td><span class="badge ${r.turno==='NOCTURNO'?'bno':'bdi'}">${r.turno==='NOCTURNO'?'Noct':'Diur'}</span></td><td><span class="badge ${r.tipo==='HORA'?'bbl':'btl'}">${r.tipo}</span></td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.det2}</td><td class="vm">${r.cant.toFixed(2)}</td><td style="color:var(--tx3)">${r.ud}</td><td style="color:var(--tl);font-family:var(--mo)">$${r.tarTu.toFixed(3)}</td><td class="va">$${r.valTu.toFixed(2)}</td><td class="vm" style="color:var(--tx2)">$${r.valEmp.toFixed(2)}</td><td class="${r.dif>=0?'vg':'vr'}">$${r.dif.toFixed(2)}</td><td>${fb}</td></tr>`;
   }).join('');
 }
 
@@ -1850,7 +1895,7 @@ function renderRmHoras(){
     var tarTu=Number(l.tarTu||0);
     var sub=( cant*tarTu).toFixed(2);
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);'+bg+'">'
-      +'<td style="padding:8px 10px;color:#e2e8f0;white-space:nowrap">'+l.fecha+'</td>'
+      +'<td style="padding:8px 10px;color:#e2e8f0;white-space:nowrap">'+_cleanFecha(l.fecha)+'</td>'
       +'<td style="padding:8px 10px;color:#e2e8f0">'+tk+' '+(l.det2||'—')+'</td>'
       +'<td style="padding:8px 10px;color:#94a3b8;font-size:0.72rem">'+sede+'</td>'
       +'<td style="padding:8px 10px;color:#94a3b8;font-family:monospace;font-size:0.75rem">'+ing+'</td>'
@@ -1905,7 +1950,7 @@ function renderRmAvance(){
     var ferStr=l.esHoliday?'<span style="color:#c4b5fd;font-size:0.65rem"> Fer.</span>':'';
     var cant=Number(l.cant||0),tarTu=Number(l.tarTu||0),sub=(cant*tarTu).toFixed(2);
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.08);'+ferBg+'">'
-      +'<td style="padding:8px 10px;color:#f1f5f9;white-space:nowrap;font-weight:500">'+l.fecha+'</td>'
+      +'<td style="padding:8px 10px;color:#f1f5f9;white-space:nowrap;font-weight:500">'+_cleanFecha(l.fecha)+'</td>'
       +'<td style="padding:8px 10px;color:#e2e8f0">['+tk+'] '+(l.det2||'-')+'</td>'
       +'<td style="padding:8px 12px;font-family:monospace;color:#fde68a;font-weight:700;text-align:right;font-size:0.92rem">'+cant.toFixed(2)+'</td>'
       +'<td style="padding:8px 4px;color:#94a3b8;font-size:0.72rem">lb</td>'
@@ -2061,7 +2106,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     hRows=w.lineasH.map((l,rowIdx)=>{
       const sub=+(l.cant*l.tarTu).toFixed(2);
       return`<tr style="background:${rowIdx%2?rowAlt:'#fff'}">
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:12px">${l.fecha}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:12px">${_cleanFecha(l.fecha)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:12px">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:12px">${l.det2}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#374151;font-size:12px">${l.horaIng||'-'}</td>
@@ -2078,7 +2123,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     aRows=w.lineasP.map((l,li)=>{
       const sub=+(l.cant*l.tarTu).toFixed(2);
       return`<tr style="background:${li%2===0?'#ffffff':'#f8fafc'}">
-        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.fecha}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${_cleanFecha(l.fecha)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.turno==='NOCTURNO'?'NOCTURNO':'DIURNO'}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;color:#1e293b">${l.det2}</td>
         <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;color:#1e293b;font-weight:700;font-family:monospace">${l.cant.toFixed(3)}</td>
@@ -2260,7 +2305,12 @@ function rmWA(){
   msg+=SEP+'\n';
   msg+='_CUADRILLA JESSICA_';
   _waMsg=msg;
+  _waMsgFull=msg; // guardar para modo switch
   _waTel=w.celular||'';
+  // Guardar estado del worker para cambiar de modo
+  _waCurWorker=w; _waDriveUrl=ov.driveUrl||'';
+  // Resetear modo a detallado
+  _waSetMode('detalle');
   $d('wbody').textContent=msg;
   $d('wmod').classList.add('show');
 }
@@ -2272,6 +2322,56 @@ function sendWA(){
   const url=tel?`https://wa.me/593${tel.replace(/^0/,'')}?text=${encodeURIComponent($d('wbody').textContent)}`:`https://wa.me/?text=${encodeURIComponent($d('wbody').textContent)}`;
   window.open(url,'_blank');
 }
+
+// ── Datos guardados del WA modal para cambiar modo ─────────────────────────
+var _waCurWorker=null, _waCurCierre=null, _waDriveUrl='';
+
+/* _waSetMode: cambia entre mensaje detallado y mensaje corto con link */
+function _waSetMode(mode){
+  var detBtn=document.getElementById('wa-mode-det');
+  var lnkBtn=document.getElementById('wa-mode-link');
+  if(!detBtn||!lnkBtn) return;
+
+  if(mode==='link'){
+    // Modo link: mensaje corto con el PDF link
+    lnkBtn.style.background='rgba(99,102,241,0.2)';
+    lnkBtn.style.borderColor='#818cf8';
+    lnkBtn.style.color='#a5b4fc';
+    lnkBtn.style.fontWeight='600';
+    detBtn.style.background='transparent';
+    detBtn.style.borderColor='rgba(255,255,255,0.15)';
+    detBtn.style.color='rgba(255,255,255,0.5)';
+    detBtn.style.fontWeight='400';
+    if(_waCurWorker&&_waDriveUrl){
+      var t=_waCurWorker, c=_waCurCierre||{};
+      var msg='*CUADRILLA JESSICA*\n';
+      msg+='*'+t.nombre+'*\n';
+      msg+='📅 '+(c.rango||'')+'\n';
+      msg+='💰 *NETO: $'+(+(t.neto||t.bruto||0)).toFixed(2)+'*\n';
+      msg+='\n📄 *Comprobante PDF:*\n'+_waDriveUrl+'\n';
+      msg+='_CUADRILLA JESSICA_';
+      _waMsg=msg;
+      $d('wbody').textContent=msg;
+    } else {
+      $d('wbody').textContent='⚠ No hay PDF generado aún. Genera el PDF primero para usar este modo.';
+    }
+  } else {
+    // Modo detallado: volver al mensaje completo
+    detBtn.style.background='rgba(37,211,102,0.15)';
+    detBtn.style.borderColor='#25d366';
+    detBtn.style.color='#25d366';
+    detBtn.style.fontWeight='600';
+    lnkBtn.style.background='transparent';
+    lnkBtn.style.borderColor='rgba(255,255,255,0.15)';
+    lnkBtn.style.color='rgba(255,255,255,0.5)';
+    lnkBtn.style.fontWeight='400';
+    // Re-ejecutar rmWA para regenerar el mensaje completo
+    if(_waCurWorker) _waMsg=_waMsgFull||_waMsg;
+    $d('wbody').textContent=_waMsg;
+  }
+}
+
+var _waMsgFull='';
 
 // ── Guardar Cierre ────────────────────────────────────────────────────────────
 function guardarCierre(){
@@ -2982,7 +3082,7 @@ function _openWAWithData(t,c,driveUrl){
       return (a.fecha_sort||a.fecha||'')>(b.fecha_sort||b.fecha||'')?1:-1;});
     sortedH.forEach(function(l){
       var tk=(l.turno||'').toUpperCase()==='NOCTURNO'?'🌙':'☀️';
-      var f=String(l.fecha||'').substring(0,10);
+      var f=_cleanFecha(l.fecha);
       var h=+(l.horas||0);
       var tar=+(l.tarifa||0);
       var pg=+(l.pago||0);
