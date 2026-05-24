@@ -856,10 +856,17 @@ const $d=id=>document.getElementById(id);
 function gn(v){if(!v&&v!==0)return 0;const n=parseFloat(String(v).replace(/[$,\s]/g,''));return isNaN(n)?0:n;}
 function trn(v){return v&&String(v).toUpperCase().includes('NOCT')?'NOCTURNO':'DIURNO';}
 function fdt(v){
-  if(!v)return'';
-  if(v instanceof Date)return v.toLocaleDateString('es-EC');
-  const d=new Date(v);
-  return isNaN(d)?String(v).substring(0,10):d.toLocaleDateString('es-EC');
+  if(!v) return '';
+  // Si ya es string con formato legible → retornar directo
+  var sv=String(v).trim();
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(sv)) return sv; // DD/MM/YYYY
+  if(/^\d{4}-\d{2}-\d{2}$/.test(sv)){ // YYYY-MM-DD → convertir a DD/MM/YYYY
+    var ps=sv.split('-'); return ps[2]+'/'+ps[1]+'/'+ps[0];
+  }
+  // Date object → usar UTC para evitar desfase Ecuador (UTC-5)
+  var d = v instanceof Date ? v : new Date(v);
+  if(isNaN(d)) return sv.substring(0,10);
+  return String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+d.getUTCFullYear();
 }
 
 /* _cleanFecha: convierte CUALQUIER formato de fecha a DD/MM/YYYY
@@ -890,10 +897,35 @@ function _cleanFecha(v){
   return s.substring(0,10);
 }
 function fdtSort(v){
-  if(!v)return'';let d=v instanceof Date?v:null;
-  if(!d){d=new Date(v);if(isNaN(d)){const p=String(v).split('/');if(p.length===3)d=new Date(+p[2],+p[1]-1,+p[0]);}}
-  if(!d||isNaN(d))return String(v).substring(0,10);
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  if(!v) return '';
+  var sv=String(v).trim();
+
+  // ── Caso 1: texto DD/MM/YYYY → parsear directo sin timezone ──────────────
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(sv)){
+    var p=sv.split('/');
+    return p[2]+'-'+String(+p[1]).padStart(2,'0')+'-'+String(+p[0]).padStart(2,'0');
+  }
+
+  // ── Caso 2: texto ISO YYYY-MM-DD → devolver directo ──────────────────────
+  if(/^\d{4}-\d{2}-\d{2}/.test(sv)) return sv.substring(0,10);
+
+  // ── Caso 3: texto D/M/YYYY o M/D/YYYY ────────────────────────────────────
+  if(/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(sv)){
+    var p2=sv.split('/');
+    var yr='20'+p2[2];
+    return yr+'-'+String(+p2[1]).padStart(2,'0')+'-'+String(+p2[0]).padStart(2,'0');
+  }
+
+  // ── Caso 4: Date object o string timestamp ────────────────────────────────
+  // IMPORTANTE: usar UTC para evitar desfase Ecuador (UTC-5)
+  // Excel/xlsx guarda fechas como medianoche UTC → getDate() en Ecuador da día anterior
+  var d = v instanceof Date ? v : new Date(v);
+  if(isNaN(d)){
+    // Último fallback: cortar primeros 10 chars
+    return sv.substring(0,10);
+  }
+  // Usar getUTC* para obtener la fecha correcta independiente del timezone del browser
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
 }
 function hFmt(h){const hrs=Math.floor(h),min=Math.round((h-hrs)*60);return hrs+':'+String(min).padStart(2,'0')+'h';}
 
@@ -1657,9 +1689,10 @@ function proc(){
   var tabPrev=document.querySelectorAll('.tab')[2];
   if(tabPrev) tabPrev.click();
   var workers=Object.keys(det.reduce(function(m,r){m[normCed(r.cedula)||r.nombre]=1;return m;},{})).length;
+  var feriadoCount=det.filter(function(r){return r.esHoliday;}).length;
   var sl=$d('sl');
-  if(sl) sl.innerHTML='<span class="sgo">✓ '+workers+' trabajadores · '+det.length+' registros</span>';
-  toast('✓ Roles: '+workers+' trabajadores · '+det.length+' registros');
+  if(sl) sl.innerHTML='<span class="sgo">✓ '+workers+' trabajadores · '+det.length+' registros'+(feriadoCount?' · <span style="color:#c084fc">🎉 '+feriadoCount+' registros en feriado</span>':'')+'</span>';
+  toast('✓ Roles: '+workers+' trabajadores · '+det.length+' registros'+(feriadoCount?' · '+feriadoCount+' feriados':''));
 }
 
 // ── bM: agrupa por trabajador ─────────────────────────────────────────────────
@@ -1759,7 +1792,9 @@ function rD4(){
   const data=gFilt();$d('dc').textContent=data.length+' registros';
   const tb=$d('tb4');if(!data.length){tb.innerHTML='<tr class="er"><td colspan="13">Sin registros</td></tr>';return;}
   tb.innerHTML=data.map(r=>{
-    const fb=r.esHoliday?`<span class="badge bpu">🎉+$${r.tipo==='HORA'?r.extraHora.toFixed(2):r.extraAvance.toFixed(2)}</span>`:'—';
+    const fb=r.esHoliday
+      ?`<span class="badge bpu" title="Feriado: tarifa base $${r.tarBase.toFixed(2)} + extra $${(r.tipo==='HORA'?r.extraHora:r.extraAvance).toFixed(2)} = $${r.tarTu.toFixed(2)}">🎉 $${r.tarTu.toFixed(r.tipo==='HORA'?2:3)}</span>`
+      :'—';
     return`<tr><td style="color:var(--tx2)">${_cleanFecha(r.fecha)}</td><td class="vm">${r.cedula}</td><td>${r.nombre}</td><td><span class="badge ${r.turno==='NOCTURNO'?'bno':'bdi'}">${r.turno==='NOCTURNO'?'Noct':'Diur'}</span></td><td><span class="badge ${r.tipo==='HORA'?'bbl':'btl'}">${r.tipo}</span></td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.det2}</td><td class="vm">${r.cant.toFixed(2)}</td><td style="color:var(--tx3)">${r.ud}</td><td style="color:var(--tl);font-family:var(--mo)">$${r.tarTu.toFixed(3)}</td><td class="va">$${r.valTu.toFixed(2)}</td><td class="vm" style="color:var(--tx2)">$${r.valEmp.toFixed(2)}</td><td class="${r.dif>=0?'vg':'vr'}">$${r.dif.toFixed(2)}</td><td>${fb}</td></tr>`;
   }).join('');
 }
