@@ -792,12 +792,12 @@ const LOGO_URI = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5v
 // ⬇⬇ PEGA AQUÍ LA URL DE TU APPS SCRIPT (la única línea que debes editar)
 // Cópiala en: Apps Script → Implementar → Administrar implementaciones
 // ════════════════════════════════════════════════════════════════════
-const DEFAULT_API = '';
+const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbzVe6A0bq5wV9D6c1fvF1kIQTsV-vamfxG9ZqKqJ37ekFSWBqaQpPtHnmIl6zs393jxZg/exec';
 // ════════════════════════════════════════════════════════════════════
 
 function getAPI(){
   // Prioridad: 1) DEFAULT_API en el archivo, 2) URL guardada en localStorage
-  return DEFAULT_API || localStorage.getItem('cj_api_url') || 'https://script.google.com/macros/s/AKfycbzVe6A0bq5wV9D6c1fvF1kIQTsV-vamfxG9ZqKqJ37ekFSWBqaQpPtHnmIl6zs393jxZg/exec';
+  return DEFAULT_API || localStorage.getItem('cj_api_url') || '';
 }
 function setAPI(url){
   if(url && url.trim()) localStorage.setItem('cj_api_url', url.trim());
@@ -1636,11 +1636,13 @@ function proc(){
     const fSrt=fdtSort(r['FECHA']);
     const feriado=getFeriado(fSrt);
     const extraAvance=feriado?feriado.extra_avance_pg:0;
-    const tarTu=gtp(talla,t);
+    const tarBase=gtp(talla,t);
+    // EXTRA_AVANCE_PG: suma al valor de tarifa por lb (igual que EXTRA_HORA_PG suma a la tarifa/h)
+    const tarTu=tarBase+extraAvance;
     const valTu=+(lbs*tarTu).toFixed(4);
     const valEmp=gn(r['VALOR A PAGAR']||r['VALOR_A_PAGAR']);
     const cedula=normCed(r['CÉDULA']||r['CEDULA']||r['CÉDULA/RUC']||'');
-    det.push({fecha:fdt(r['FECHA']),fechaSort:fSrt,cedula,nombre:String(r['NOMBRE']||'').trim(),turno:t,tipo:'PROD',det2:talla,cant:lbs,ud:'lb',tarBase:tarTu,extraHora:0,tarTu,valTu,valEmp,dif:+(valEmp-valTu).toFixed(4),esHoliday:!!feriado,extraAvance,horaIng:'',horaSal:'',sedeR:r['SEDE']||r['CIUDAD']||'',cliente:'',tipoProceso:r['TIPO_PROCESO']||r['TIPO PROCESO']||'',completo:1});
+    det.push({fecha:fdt(r['FECHA']),fechaSort:fSrt,cedula,nombre:String(r['NOMBRE']||'').trim(),turno:t,tipo:'PROD',det2:talla,cant:lbs,ud:'lb',tarBase,extraHora:0,tarTu,valTu,valEmp,dif:+(valEmp-valTu).toFixed(4),esHoliday:!!feriado,extraAvance,horaIng:'',horaSal:'',sedeR:r['SEDE']||r['CIUDAD']||'',cliente:'',tipoProceso:r['TIPO_PROCESO']||r['TIPO PROCESO']||'',completo:1});
   });
   // ── Habilitar guardar SIEMPRE (antes de renders por si alguno falla) ──────
   var bguEl=$d('bguardar');
@@ -1691,13 +1693,17 @@ function bM(){
     else{m[k].lT+=r.cant;m[k].eP+=r.valEmp;m[k].tP+=r.valTu;m[k].lineasP.push(r);}
   });
   Object.values(m).forEach(w=>{
-    const hdDays={};
-    w.lineasP.forEach(l=>{if(l.esHoliday&&l.extraAvance&&!hdDays[l.fechaSort])hdDays[l.fechaSort]=l.extraAvance;});
-    w.bonusAvance=+Object.values(hdDays).reduce((s,v)=>s+v,0).toFixed(2);
+    // bonusAvance = 0: el extra de feriado ya está incluido en tarTu → valTu → tP
+    // Se calcula solo para mostrar cuánto fue el bono en comprobantes (display only)
+    var _bonusDisplay=0;
+    w.lineasP.forEach(function(l){
+      if(l.esHoliday&&l.extraAvance>0) _bonusDisplay+=+(l.extraAvance*l.cant).toFixed(4);
+    });
+    w.bonusAvance=0; // NO se suma a tP (ya está incluido)
+    w._bonusDisplay=+_bonusDisplay.toFixed(2); // solo para mostrar en pantalla
     w.diasTrab=w.fechas.length;
-    // Expreso = valor_dia × días trabajados
     w.descExpreso=+(w.expresoDia*w.diasTrab).toFixed(2);
-    w.bruto=+(w.tH+w.tP+w.bonusAvance).toFixed(2);
+    w.bruto=+(w.tH+w.tP).toFixed(2); // correcto: tP ya incluye el extra feriado
   });
   return Object.values(m).sort((a,b)=>(b.eH+b.eP)-(a.eH+a.eP));
 }
@@ -1805,7 +1811,7 @@ function openRol(safeCed){
   $d('rm-hrs-lbl').textContent='Horas ('+w.lineasH.length+' turnos)';
   $d('rm-hrs-val').textContent='$'+w.tH.toFixed(2);
   $d('rm-av-lbl').textContent='Avance ('+w.lineasP.length+' reg.)';
-  $d('rm-av-val').textContent='$'+(w.tP+w.bonusAvance).toFixed(2);
+  $d('rm-av-val').textContent='$'+(w.tP).toFixed(2);
   $d('rm-bruto').textContent='$'+w.bruto.toFixed(2);
   // descuentos fijos
   // Expreso: muestra si el sector tiene tarifa en TARIFA_EXPRESO
@@ -2205,7 +2211,7 @@ function buildPdfHTML({w,ov,td,neto,cargo,sede,ini,fin,rango,anti,multa,otros,ob
     <div style="padding:20px 28px">
       <div style="max-width:340px;margin-left:auto">
         ${w.tH>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px"><span style="color:#64748b">⏱ Subtotal Horas</span><span>$${w.tH.toFixed(2)}</span></div>`:''} 
-        ${(w.tP+w.bonusAvance)>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px"><span style="color:#64748b">📦 Subtotal Avance</span><span>$${(w.tP+w.bonusAvance).toFixed(2)}</span></div>`:''} 
+        ${(w.tP)>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:12px"><span style="color:#64748b">📦 Subtotal Avance</span><span>$${(w.tP).toFixed(2)}</span></div>`:''} 
         <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:2px solid ${colH};font-size:14px;font-weight:700;color:${colH}"><span>🔥 TOTAL BRUTO</span><span>$${w.bruto.toFixed(2)}</span></div>
         ${w.descExpreso>0?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:#dc2626">🚌 Expreso ${w.sector} (${w.diasTrab}d × $${w.expresoDia.toFixed(2)})</span><span style="color:#dc2626;font-weight:600">-$${w.descExpreso.toFixed(2)}</span></div>`:''} 
         ${w.descBancario>0?`<div style='display:flex;justify-content:space-between;padding:6px 0;font-size:12px'><span style='color:#dc2626'>🏦 Desc. transferencia (${w.banco})</span><span style='color:#dc2626;font-weight:600'>-$${w.descBancario.toFixed(2)}</span></div>`:''} 
@@ -2349,7 +2355,7 @@ function _waBuildMsg(w, ctx){
       msg+='  '+v.fecha+'  '+v.talla+'  '+v.lb.toFixed(2)+' lb\n';
     });
     msg+=LIN+'\n';
-    msg+='  *Total: '+w.lT.toFixed(2)+' lb  →  $'+(w.tP+w.bonusAvance).toFixed(2)+'*\n';
+    msg+='  *Total: '+w.lT.toFixed(2)+' lb  →  $'+(w.tP).toFixed(2)+'*\n';
   }
   // Bruto + descuentos
   msg+='\n'+SEP+'\n';
@@ -2493,7 +2499,7 @@ function guardarCierre(){
     const ov=getOv(w.cedula);
     const td=+(w.descExpreso+w.descBancario+ov.anticipo+ov.multa+ov.otros).toFixed(2);
     const neto=+(w.bruto-td).toFixed(2);
-    return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo:w.cargo||cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP+w.bonusAvance).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',nombre_prop:w.nombreProp||'',cedula_prop:w.cedProp||'',drive_url:ov.driveUrl||''};
+    return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo:w.cargo||cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',nombre_prop:w.nombreProp||'',cedula_prop:w.cedProp||'',drive_url:ov.driveUrl||''};
   });
   const rolDetalle=det.map(r=>({id_rol:idRol,cedula:r.cedula,tipo:r.tipo==='HORA'?'HORA':'AVANCE',fecha:r.fecha,fecha_sort:r.fechaSort,turno:r.turno,area:r.det2,hora_ing:r.horaIng,hora_sal:r.horaSal,horas:r.tipo==='HORA'?+r.cant.toFixed(2):0,tarifa:+r.tarTu.toFixed(4),pago:+r.valTu.toFixed(2),completo:1,peso:r.tipo==='PROD'?+r.cant.toFixed(2):0,unid:r.ud,tipo_proceso:r.tipoProceso||'',cliente:r.cliente||'',sede:r.sedeR||sede}));
   // localStorage
@@ -2598,7 +2604,7 @@ function openRolHist(cierreId,key){
   $d('rm-hrs-lbl').textContent='Horas ('+(_curRolWorker.lineasH.length)+' turnos)';
   $d('rm-hrs-val').textContent='$'+_curRolWorker.tH.toFixed(2);
   $d('rm-av-lbl').textContent='Avance ('+(_curRolWorker.lineasP.length)+' reg.)';
-  $d('rm-av-val').textContent='$'+(_curRolWorker.tP+_curRolWorker.bonusAvance).toFixed(2);
+  $d('rm-av-val').textContent='$'+_curRolWorker.tP.toFixed(2);
   $d('rm-bruto').textContent='$'+_curRolWorker.bruto.toFixed(2);
   if(_curRolWorker.descExpreso>0){$d('rm-exp-row').style.display='block';$d('rm-exp-lbl').textContent=`Expreso ${_curRolWorker.sector} (${_curRolWorker.diasTrab}d × $${_curRolWorker.expresoDia.toFixed(2)})`;$d('rm-exp-val').textContent='-$'+_curRolWorker.descExpreso.toFixed(2);}else $d('rm-exp-row').style.display='none';
   if(_curRolWorker.cuentaBanco){
@@ -3169,11 +3175,10 @@ function _openWAWithData(t,c,driveUrl){
       msg+='  '+v.fecha+'  '+v.proc+'  '+v.lb.toFixed(2)+' lb  → $'+v.pg.toFixed(2)+'\n';
     });
     msg+=LIN+'\n';
-    var tAvance=tP+bonus;
-    if(bonus>0) msg+='  ⭐ Bono: +$'+bonus.toFixed(2)+'\n';
+    var tAvance=tP; // extra feriado ya incluido en tarifa × lbs
     msg+='  *Total: '+lbsT.toFixed(2)+' lb  →  $'+tAvance.toFixed(2)+'*\n';
   } else if(lbsT>0){
-    msg+='\n*📦 Avance:* '+lbsT.toFixed(0)+' lb  →  *$'+(tP+bonus).toFixed(2)+'*\n';
+    msg+='\n*📦 Avance:* '+lbsT.toFixed(0)+' lb  →  *$'+tP.toFixed(2)+'*\n';
   }
 
   // ── Bruto ─────────────────────────────────────────────────────────────────
@@ -3705,8 +3710,7 @@ function recalcularCierre(cierreId){
       hT+=cant; tH+=l.valTu;
     });
 
-    // Recalcular avance/producción
-    var hdDays={};
+    // Recalcular avance/producción (extra feriado ya incluido en tarifa por lb)
     (t.lineasP||[]).forEach(function(l){
       var proc=sv2(l.det2||l.tipoProceso||l.talla||'');
       var turno=sv2(l.turno||'DIURNO').toUpperCase();
@@ -3714,21 +3718,23 @@ function recalcularCierre(cierreId){
         return sv2(r.proceso||'').toUpperCase()===proc.toUpperCase()||
                sv2(r.talla||'').toUpperCase()===proc.toUpperCase();
       });
-      var tarifa=tarRow?(turno==='NOCTURNO'?tarRow.nocturno:tarRow.diurno):0;
-      tarifa=+(tarifa||0);
+      var tarBase=tarRow?(turno==='NOCTURNO'?tarRow.nocturno:tarRow.diurno):0;
+      tarBase=+(tarBase||0);
       var cant=+(l.cant||0);
-      l.tarTu=tarifa;
-      l.valTu=+(cant*tarifa).toFixed(2);
-      lT+=cant; tP+=l.valTu;
-      // Bonus feriado avance (por día único)
-      if(l.esHoliday&&l.fecha&&!hdDays[l.fecha]){
-        hdDays[l.fecha]=true;
+      // Aplicar extra feriado a la tarifa base (igual que para horas)
+      var ferExtraAvance=0;
+      if(l.esHoliday&&l.fecha&&FE.length){
         var fer2=FE.find(function(f){return f.fecha===l.fecha;});
-        if(fer2) bonusAvance+=(fer2.extra_avance_pg||0);
+        if(fer2) ferExtraAvance=+(fer2.extra_avance_pg||0);
       }
+      l.tarTu=+(tarBase+ferExtraAvance).toFixed(4);
+      l.valTu=+(cant*l.tarTu).toFixed(2);
+      lT+=cant; tP+=l.valTu;
     });
 
-    tP=+(tP+bonusAvance).toFixed(2);
+    // bonusAvance = 0: el extra ya está en tarTu → valTu → tP
+    tP=+tP.toFixed(2);
+    bonusAvance=0;
     var bruto=+(tH+tP).toFixed(2);
 
     // Recalcular expreso (por días trabajados)
