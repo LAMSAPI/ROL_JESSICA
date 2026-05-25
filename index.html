@@ -1513,9 +1513,9 @@ function _doLogin(id, pw){
   $d('AP').style.display='block';
   $d('ul').textContent = u.nombre || u.idempleado;
   // ── Auto-sincronizar historial desde Sheets al iniciar sesión ────────────
-  // Sheets = fuente de verdad compartida entre todos los usuarios
   setTimeout(function(){
-    cargarDesdeSheets(true); // siempre sincronizar, silenciosamente
+    cargarDesdeSheets(true);
+    _startPolling(); // polling automático cada 30s
   }, 1500);
   tarifasOk=true;
   renderTar();
@@ -1530,6 +1530,7 @@ function logout(){
   CURR_USER=null; USERS=[];
   TH=[];TP=[];TF=[];FE=[];IA=[];LIST=[];
   det=[];dH=[];dA=[];overrides={};
+  _stopPolling(); // detener polling automático
   try{localStorage.removeItem('cj_session');}catch(e){}
   loaded={h:false,a:false};tarifasOk=false;
   $d('LS').style.display='flex';
@@ -2549,9 +2550,8 @@ function guardarCierre(){
     unid:r.ud,
     tipo_proceso:r.tipoProceso||'',
     cliente:r.cliente||'',
-    sede:r.sedeR||sede,
-    tar_base:+(r.tarBase||r.tarTu).toFixed(4),  // ← tarifa base sin feriado
-    es_feriado:r.esHoliday?1:0                  // ← indicador de feriado
+    sede:r.sedeR||sede
+    // tar_base y es_feriado eliminados: se detectan dinámicamente desde FERIADOS
   }));
   // localStorage
   const cierre={id:idRol,rango,fecha_guardado:new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),cargo,sede,periodo_ini:ini,periodo_fin:fin,trabajadores:rolPagos.map((rp,i)=>{const w=list[i];const ov=getOv(w.cedula);return{...rp,id_rol:undefined,total_emp_h:+w.eH.toFixed(2),total_tu_h:+w.tH.toFixed(2),total_emp_p:+w.eP.toFixed(2),total_tu_p:+w.tP.toFixed(2),bonusAvance:w.bonusAvance,total_emp:+(w.eH+w.eP).toFixed(2),total_tu:w.bruto,margen:+(w.eH+w.eP-w.bruto).toFixed(2),lineasH:w.lineasH,lineasP:w.lineasP,estado:'pendiente'};})};
@@ -3576,20 +3576,23 @@ async function rmPDFDrive(){
    El localStorage es solo caché temporal (velocidad + offline fallback)       */
 
 var _lastSheetsSync = 0;  // timestamp del último sync con Sheets
+var _pollingTimer   = null; // timer de polling automático
 
-/* _syncHistSheets: sincroniza historial desde Sheets (con throttle de 90s)
-   Se llama al abrir el tab Historial. Muestra caché local inmediatamente
-   y actualiza en segundo plano si han pasado más de 90 segundos.            */
+/* _startPolling: sincroniza con Sheets automáticamente cada 30s */
+function _startPolling(){
+  if(_pollingTimer) return; // ya activo
+  _pollingTimer = setInterval(function(){
+    if(!getAPI()||!getAPI().includes('script.google')) return;
+    cargarDesdeSheets(true); // silencioso
+  }, 30000); // cada 30 segundos
+}
+function _stopPolling(){ if(_pollingTimer){clearInterval(_pollingTimer);_pollingTimer=null;} }
+
+/* _syncHistSheets: sincroniza historial desde Sheets (throttle 30s) */
 function _syncHistSheets(){
   var age = Date.now() - _lastSheetsSync;
   var hasLocal = loadHist().length > 0;
-
-  if(hasLocal && age < 90000){
-    // Caché reciente (<90s) → no llamar a Sheets de nuevo
-    return;
-  }
-
-  // Llamar a Sheets en segundo plano (silencioso si ya hay datos locales)
+  if(hasLocal && age < 30000){ return; } // skip si <30s
   cargarDesdeSheets(hasLocal);
 }
 
@@ -3621,21 +3624,28 @@ function cargarDesdeSheets(silent){
       local.forEach(function(c){localMap[c.id]=c;});
 
       var merged=cierresSheets.map(function(cs){
-        // Limpiar y enriquecer lineasH/lineasP que vienen de Sheets (ROL_DETALLE)
+        // Limpiar y enriquecer lineasH/lineasP usando el FE actual (dinámico)
         cs.trabajadores.forEach(function(t){
           t.lineasH.forEach(function(l){
-            if(l.fecha)   l.fecha    = _cleanFecha(l.fecha);
-            if(l.fechaSort)l.fechaSort= l.fechaSort;
-            else           l.fechaSort= l.fecha;
-            l.extraHora   = (l.tarBase>0&&l.tarTu>l.tarBase) ? +(l.tarTu-l.tarBase).toFixed(4) : 0;
+            if(l.fecha)    l.fecha    = _cleanFecha(l.fecha);
+            if(!l.fechaSort)l.fechaSort = l.fecha;
+            // Detectar feriado desde FE actual (dinámico — siempre actualizado)
+            var fer = FE.length ? FE.find(function(f){return f.fecha===l.fechaSort;}) : null;
+            l.esHoliday   = !!fer;
+            l.extraHora   = fer ? +(fer.extra_hora_pg||0)  : 0;
             l.extraAvance = 0;
+            l.tarBase     = fer ? +(l.tarTu - l.extraHora).toFixed(4) : l.tarTu;
+            if(l.tarBase < 0) l.tarBase = l.tarTu;
           });
           t.lineasP.forEach(function(l){
-            if(l.fecha)   l.fecha    = _cleanFecha(l.fecha);
+            if(l.fecha)    l.fecha    = _cleanFecha(l.fecha);
             if(!l.fechaSort)l.fechaSort = l.fecha;
-            l.extraAvance = (l.tarBase>0&&l.tarTu>l.tarBase) ? +(l.tarTu-l.tarBase).toFixed(4) : 0;
+            var fer = FE.length ? FE.find(function(f){return f.fecha===l.fechaSort;}) : null;
+            l.esHoliday   = !!fer;
+            l.extraAvance = fer ? +(fer.extra_avance_pg||0) : 0;
             l.extraHora   = 0;
-            // Asegurar que cant no sea 0 si valTu y tarTu son válidos
+            l.tarBase     = fer ? +(l.tarTu - l.extraAvance).toFixed(4) : l.tarTu;
+            if(l.tarBase < 0) l.tarBase = l.tarTu;
             if(!l.cant && l.valTu && l.tarTu) l.cant = +(l.valTu/l.tarTu).toFixed(2);
           });
         });
