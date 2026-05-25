@@ -2536,7 +2536,7 @@ function guardarCierre(){
     return{id_rol:idRol,periodo_ini:ini,periodo_fin:fin,cargo:w.cargo||cargo,sede,cedula:w.cedula,nombre:w.nombre,sector:w.sector,celular:w.celular,dias_trab:w.diasTrab,horas:+w.hT.toFixed(2),pago_hora:+w.tH.toFixed(2),libras:+w.lT.toFixed(2),pago_avance:+(w.tP).toFixed(2),bruto:w.bruto,desc_expreso:w.descExpreso,desc_bancario:w.descBancario,desc_anticipo:ov.anticipo,desc_multa:ov.multa,desc_otros:ov.otros,desc_obs:ov.obs,total_desc:td,neto,cuenta_banco:w.cuentaBanco,banco:w.banco,tipo_cuenta:w.tipoCuenta||'',nombre_prop:w.nombreProp||'',cedula_prop:w.cedProp||'',drive_url:ov.driveUrl||''};
   });
   const rolDetalle=det.map(r=>({
-    id_rol:idRol, cedula:r.cedula,
+    id_rol:idRol, cedula:r.cedula, nombre:r.nombre||'',
     tipo:r.tipo==='HORA'?'HORA':'AVANCE',
     fecha:r.fecha, fecha_sort:r.fechaSort,
     turno:r.turno, area:r.det2,
@@ -3848,20 +3848,25 @@ function recalcularCierre(cierreId){
                sv2(r.proceso||'').toUpperCase()===area.toUpperCase();
       });
       var tarifa=tarRow?(turno==='NOCTURNO'?tarRow.nocturno:tarRow.diurno):0;
-      // Aplicar extra feriado si corresponde
+      // Aplicar extra feriado — usar fechaSort (YYYY-MM-DD) que coincide con FE
       var ferExtra=0;
-      if(l.esHoliday&&FE.length){
-        var fer=FE.find(function(f){return f.fecha===l.fecha;});
-        if(fer) ferExtra=fer.extra_hora_pg||0;
+      var _fSort=l.fechaSort||l.fecha;
+      if(FE.length){
+        var fer=FE.find(function(f){return f.fecha===_fSort;});
+        if(!fer&&l.fecha) fer=FE.find(function(f){return _cleanFecha(f.fecha)===_cleanFecha(l.fecha)||f.fecha===_cleanFecha(l.fecha);});
+        if(fer) ferExtra=+(fer.extra_hora_pg||0);
       }
       tarifa=+(tarifa||0);
       var cant=+(l.cant||0);
+      l.tarBase=tarifa; // guardar base para futuros usos
       l.tarTu=+(tarifa+ferExtra).toFixed(4);
       l.valTu=+(cant*l.tarTu).toFixed(2);
+      l.extraHora=ferExtra;
+      l.esHoliday=ferExtra>0;
       hT+=cant; tH+=l.valTu;
     });
 
-    // Recalcular avance/producción (extra feriado ya incluido en tarifa por lb)
+    // Recalcular avance/producción
     (t.lineasP||[]).forEach(function(l){
       var proc=sv2(l.det2||l.tipoProceso||l.talla||'');
       var turno=sv2(l.turno||'DIURNO').toUpperCase();
@@ -3872,14 +3877,19 @@ function recalcularCierre(cierreId){
       var tarBase=tarRow?(turno==='NOCTURNO'?tarRow.nocturno:tarRow.diurno):0;
       tarBase=+(tarBase||0);
       var cant=+(l.cant||0);
-      // Aplicar extra feriado a la tarifa base (igual que para horas)
+      // Aplicar extra feriado — usar fechaSort (YYYY-MM-DD) que coincide con FE
       var ferExtraAvance=0;
-      if(l.esHoliday&&l.fecha&&FE.length){
-        var fer2=FE.find(function(f){return f.fecha===l.fecha;});
+      var _fSort2=l.fechaSort||l.fecha;
+      if(FE.length){
+        var fer2=FE.find(function(f){return f.fecha===_fSort2;});
+        if(!fer2&&l.fecha) fer2=FE.find(function(f){return _cleanFecha(f.fecha)===_cleanFecha(l.fecha)||f.fecha===_cleanFecha(l.fecha);});
         if(fer2) ferExtraAvance=+(fer2.extra_avance_pg||0);
       }
+      l.tarBase=tarBase;
       l.tarTu=+(tarBase+ferExtraAvance).toFixed(4);
       l.valTu=+(cant*l.tarTu).toFixed(2);
+      l.extraAvance=ferExtraAvance;
+      l.esHoliday=ferExtraAvance>0;
       lT+=cant; tP+=l.valTu;
     });
 
