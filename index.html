@@ -2550,7 +2550,10 @@ function guardarCierre(){
     id_rol:idRol, cedula:r.cedula, nombre:r.nombre||'',
     tipo:r.tipo==='HORA'?'HORA':'AVANCE',
     fecha:r.fecha, fecha_sort:r.fechaSort,
-    turno:r.turno, area:r.det2,
+    turno:r.turno,
+    // HORA  → area = área de trabajo (det2),  tipo_proceso = vacío
+    // PROD  → area = categoría ("P&D"),       tipo_proceso = talla ("P&D T-OFF 21-25")
+    area:         r.tipo==='HORA' ? r.det2 : (r.tipoProceso||r.det2),
     hora_ing:r.horaIng, hora_sal:r.horaSal,
     horas:r.tipo==='HORA'?+r.cant.toFixed(2):0,
     tarifa:+r.tarTu.toFixed(4),
@@ -2558,10 +2561,9 @@ function guardarCierre(){
     completo:1,
     peso:r.tipo==='PROD'?+r.cant.toFixed(2):0,
     unid:r.ud,
-    tipo_proceso:r.tipoProceso||'',
+    tipo_proceso: r.tipo==='HORA' ? '' : r.det2,
     cliente:r.cliente||'',
     sede:r.sedeR||sede
-    // tar_base y es_feriado eliminados: se detectan dinámicamente desde FERIADOS
   }));
   // localStorage
   const cierre={id:idRol,rango,fecha_guardado:new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),cargo,sede,periodo_ini:ini,periodo_fin:fin,trabajadores:rolPagos.map((rp,i)=>{const w=list[i];const ov=getOv(w.cedula);return{...rp,id_rol:undefined,total_emp_h:+w.eH.toFixed(2),total_tu_h:+w.tH.toFixed(2),total_emp_p:+w.eP.toFixed(2),total_tu_p:+w.tP.toFixed(2),bonusAvance:w.bonusAvance,total_emp:+(w.eH+w.eP).toFixed(2),total_tu:w.bruto,margen:+(w.eH+w.eP-w.bruto).toFixed(2),lineasH:w.lineasH,lineasP:w.lineasP,estado:'pendiente'};})};
@@ -3659,6 +3661,11 @@ function cargarDesdeSheets(silent){
             l.tarBase     = fer ? +(l.tarTu - l.extraAvance).toFixed(4) : l.tarTu;
             if(l.tarBase < 0) l.tarBase = l.tarTu;
             if(!l.cant && l.valTu && l.tarTu) l.cant = +(l.valTu/l.tarTu).toFixed(2);
+            // Asegurar que det2 tiene el nombre de talla (no el turno)
+            // Si det2 parece un turno → usar tipoProceso como det2
+            if(!l.det2 || l.det2==='DIURNO' || l.det2==='NOCTURNO'){
+              l.det2 = l.tipoProceso || l.det2;
+            }
           });
         });
 
