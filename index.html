@@ -1987,7 +1987,14 @@ function renderRmAvance(){
   const w=_curRolWorker;
   const el=$d('rm-det-a');
   if(!el) return;
-  const lP=w?(w.lineasP||[]):[];
+  // Filtrar registros válidos (eliminar datos corruptos con fechas/tallas inválidas)
+  const lP=(w?(w.lineasP||[]):[]).filter(function(l){
+    var fc=_cleanFecha(l.fecha);
+    var det=l.det2||l.tipoProceso||'';
+    return fc && /^\d{1,2}\/\d{2}\/\d{4}$/.test(fc)
+        && det && det!=='DIURNO' && det!=='NOCTURNO'
+        && Number(l.cant||0) > 0;
+  });
   if(!lP.length){
     el.innerHTML='<div style="padding:36px 20px;text-align:center">'
       +'<div style="font-size:2rem;margin-bottom:8px">📦</div>'
@@ -2381,8 +2388,11 @@ function _waBuildMsg(w, ctx){
     var gp={};
     w.lineasP.forEach(function(l){
       var fc=_cleanFecha(l.fecha);
-      var talla=l.det2||l.tipo_proceso||'';
-      var k=fc+talla;
+      var talla=l.det2||l.tipoProceso||l.tipo_proceso||'';
+      // Filtrar registros con datos corruptos (fecha inválida o talla = turno)
+      if(!fc || !/^\d{2}\/\d{2}\/\d{4}$/.test(fc)) return;
+      if(!talla || talla==='DIURNO' || talla==='NOCTURNO') return;
+      var k=fc+'|'+talla;
       if(!gp[k]) gp[k]={fecha:fc, talla:talla, lb:0};
       gp[k].lb+=+(l.cant||l.peso||0);
     });
