@@ -3578,13 +3578,13 @@ async function rmPDFDrive(){
 var _lastSheetsSync = 0;  // timestamp del último sync con Sheets
 var _pollingTimer   = null; // timer de polling automático
 
-/* _startPolling: sincroniza con Sheets automáticamente cada 30s */
+/* _startPolling: sincroniza historial desde Sheets cada 30s (SOLO historial, no tarifas) */
 function _startPolling(){
-  if(_pollingTimer) return; // ya activo
+  if(_pollingTimer) return;
   _pollingTimer = setInterval(function(){
     if(!getAPI()||!getAPI().includes('script.google')) return;
-    cargarDesdeSheets(true); // silencioso
-  }, 30000); // cada 30 segundos
+    cargarDesdeSheets(true); // solo historial — nunca recalcula tarifas del rol activo
+  }, 30000);
 }
 function _stopPolling(){ if(_pollingTimer){clearInterval(_pollingTimer);_pollingTimer=null;} }
 
@@ -3624,6 +3624,8 @@ function cargarDesdeSheets(silent){
       local.forEach(function(c){localMap[c.id]=c;});
 
       var merged=cierresSheets.map(function(cs){
+        // Normalizar rango ISO→DD/MM/YYYY si viene de Sheets
+        if(cs.rango) cs.rango=cs.rango.replace(/(\d{4})-(\d{2})-(\d{2})/g,'$3/$2/$1');
         // Limpiar y enriquecer lineasH/lineasP usando el FE actual (dinámico)
         cs.trabajadores.forEach(function(t){
           t.lineasH.forEach(function(l){
@@ -3800,14 +3802,17 @@ function _recargarDatos(silent){
       if(!silent){
         renderTar();
         toast('✓ Datos actualizados: '+TH.length+' áreas · '+TP.length+' tallas · '+LIST.length+' listado · '+IA.length+' adicional');
-        // Actualizar Info Adicional si está visible
+        // Solo actualizar vistas que NO sean de roles activos (no tocar det/preview)
         if(document.getElementById('p7')&&document.getElementById('p7').classList.contains('on'))
           renderInfoAdicional();
-        // Actualizar Historial si está visible
         if(document.getElementById('p6')&&document.getElementById('p6').classList.contains('on'))
           renderHist();
+      } else {
+        // Silencioso: solo actualizar tarifas en el tab Tarifas si está visible
+        var p2=document.getElementById('p2');
+        if(p2&&p2.classList.contains('on')) renderTar();
+        checkReady();
       }
-      checkReady();
     })
     .catch(function(e){if(!silent) toast('Error de red: '+e.message);});
 }
