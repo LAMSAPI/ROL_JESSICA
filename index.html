@@ -285,20 +285,25 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
   .ug{grid-template-columns:1fr!important}
   .mrow{grid-template-columns:1fr 1fr!important;gap:8px!important}
   .cfg-row{grid-template-columns:1fr!important}
-  .hist-nums{grid-template-columns:1fr 1fr!important}
+  .hist-nums{grid-template-columns:1fr 1fr!important;gap:6px!important}
+  .hist-nums>div{padding:8px 6px!important}
+  .hist-nums>div>div:first-child{font-size:0.6rem!important}
+  .hist-nums>div>div:last-child{font-size:0.9rem!important}
 
   /* ── Historial ───────────────────────────────────────────────────────────── */
   .hist-hdr{flex-direction:column!important;gap:8px!important}
   .hist-act{flex-wrap:wrap!important;gap:4px!important}
-  .hist-act button{flex:1!important;min-width:80px!important;padding:8px 6px!important}
-  .hist-card{padding:12px 10px!important}
-  .hfilt{gap:6px!important;padding:10px!important}
+  .hist-act button{flex:1!important;min-width:76px!important;padding:7px 4px!important;font-size:0.68rem!important}
+  .hist-card{padding:10px 8px!important}
+  .hfilt{gap:6px!important;padding:10px!important;flex-wrap:wrap!important}
   .hfilt input,.hfilt select{font-size:0.78rem!important;padding:5px 8px!important}
-  #hf-search{min-width:100%!important}
+  #hf-search{min-width:100%!important;width:100%!important}
 
-  /* ── Tablas ──────────────────────────────────────────────────────────────── */
-  th{padding:6px 5px!important;font-size:0.62rem!important}
-  td{padding:6px 5px!important;font-size:0.72rem!important}
+  /* ── Tablas: scroll horizontal para no cortar ────────────────────────────── */
+  th{padding:5px 4px!important;font-size:0.6rem!important}
+  td{padding:5px 4px!important;font-size:0.7rem!important}
+  .hist-workers-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;margin:0 -8px!important;padding:0 8px!important}
+  .hist-workers-wrap table{min-width:560px!important}
 
   /* ── Modal rol trabajador ────────────────────────────────────────────────── */
   .rmod{width:99vw!important;margin:2px!important;max-height:97vh!important;border-radius:10px!important}
@@ -389,6 +394,18 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <div class="ctit">Cargar archivos CUADRILLA JESSICA</div>
         <div class="csub">Tarifas y listado se cargan desde Google Sheet automáticamente.</div>
         <div id="api-st" class="ldg"><div class="spin"></div><span>Conectando con Google Sheet...</span></div>
+
+        <!-- Banner de archivos activos (persiste hasta que se limpie) -->
+        <div id="active-files-banner" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:0.72rem;color:#4ade80;font-weight:700">✓ ARCHIVOS ACTIVOS</span>
+            <span id="banner-h" style="font-size:0.72rem;color:var(--tx2)"></span>
+            <span id="banner-a" style="font-size:0.72rem;color:var(--tx2)"></span>
+            <span id="banner-det" style="font-size:0.72rem;color:#c084fc;font-weight:600"></span>
+          </div>
+          <button onclick="_clearActiveFiles()" style="font-size:0.68rem;color:var(--re);background:none;border:1px solid rgba(239,68,68,0.3);border-radius:5px;padding:3px 8px;cursor:pointer">🗑 Limpiar</button>
+        </div>
+
         <div class="ug">
           <div>
             <div style="font-size:0.72rem;color:var(--tx2);margin-bottom:7px">Reporte de horas</div>
@@ -414,11 +431,10 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <div class="sln" id="sl"></div>
         <button class="bgo" id="bp" onclick="$d('bp').textContent='⏳ Procesando...';$d('bp').disabled=true;setTimeout(proc,50)" disabled>⚡ Generar roles consolidados</button>
       </div>
-      <div class="card">
+      <div class="card" style="display:none" id="file-hist-card">
         <div class="ctit" style="margin-bottom:10px">📂 Archivos cargados recientemente</div>
         <div id="file-hist"></div>
         <button onclick="localStorage.removeItem(FILE_HIST_KEY);renderFileHistory()" style="margin-top:8px;font-size:0.7rem;color:var(--tx3);background:none;border:none;cursor:pointer">🗑 Limpiar historial de archivos</button>
-
       </div>
     </div>
 
@@ -837,6 +853,7 @@ window.addEventListener('DOMContentLoaded', function(){
     if(le){le.style.color='#f59e0b';le.innerHTML='⚠ URL del Apps Script no configurada.<br><small style="color:#64748b">Edita <code>const DEFAULT_API = \'tu-url\';</code> en el index.html</small>';}
   }
   renderFileHistory();
+  _updateFileBanner(); // mostrar banner si hay archivos activos
 });
 
 // ── Estado global ────────────────────────────────────────────────────────────
@@ -1631,10 +1648,12 @@ function lf(input,tipo){
         for(let i=hr+1;i<raw.length;i++){const r=raw[i];if(!r||r.every(c=>c===null||c===''))continue;const obj={};headers.forEach((h,idx)=>{obj[h]=r[idx];});const nom=String(obj['NOMBRE']||'').trim();if(nom&&nom.toUpperCase()!=='NOMBRE')rows.push(obj);}
         if(tipo==='h'){dH=rows;loaded.h=true;const ok=$d('okh');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('zh').classList.add('ok');
           saveFileHistory('HORA', file.name, rows.length);
+          _saveFileMeta('h', file.name+' ('+rows.length+' reg)');
           // Auto-detectar cargo desde nombre de archivo si el campo está vacío o tiene valor default
           autoDetectCargo(file.name, raw, hr);}
         else{dA=rows;loaded.a=true;const ok=$d('oka');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('za').classList.add('ok');
-          saveFileHistory('AVANCE', file.name, rows.length);}
+          saveFileHistory('AVANCE', file.name, rows.length);
+          _saveFileMeta('a', file.name+' ('+rows.length+' reg)');}
       }
     }catch(err){toast('Error leyendo archivo: '+err.message);}
     // FIX: checkReady siempre se ejecuta
@@ -1710,6 +1729,7 @@ function proc(){
   var sl=$d('sl');
   if(sl) sl.innerHTML='<span class="sgo">✓ '+workers+' trabajadores · '+det.length+' registros'+(feriadoCount?' · <span style="color:#c084fc">🎉 '+feriadoCount+' registros en feriado</span>':'')+'</span>';
   toast('✓ Roles: '+workers+' trabajadores · '+det.length+' registros'+(feriadoCount?' · '+feriadoCount+' feriados':''));
+  _updateFileBanner(); // actualizar banner con conteo
 
   // ── Guardar det en localStorage Y Sheets para todos los usuarios ──────────
   try{localStorage.setItem('cj_det_cache',JSON.stringify({ts:Date.now(),det:det}));}catch(e){}
@@ -2683,6 +2703,49 @@ function guardarCierre(){
 
 // ── Historial ─────────────────────────────────────────────────────────────────
 const HIST_KEY='cj_hist_v1';
+const FILE_HIST_KEY='cj_file_hist';
+const FILE_META_KEY='cj_file_meta';
+
+/* ── Archivos activos: banner persistente ────────────────────────────────── */
+function _updateFileBanner(){
+  var meta=null;
+  try{meta=JSON.parse(localStorage.getItem(FILE_META_KEY)||'null');}catch(e){}
+  var banner=$d('active-files-banner');
+  if(!banner)return;
+  var hasFiles=meta&&(meta.h||meta.a);
+  var hasDet=det&&det.length>0;
+  if(!hasFiles&&!hasDet){banner.style.display='none';return;}
+  banner.style.display='flex';
+  var bh=$d('banner-h'),ba=$d('banner-a'),bd=$d('banner-det');
+  if(bh)bh.textContent=meta&&meta.h?'⏱ '+meta.h:'';
+  if(ba)ba.textContent=meta&&meta.a?'📦 '+meta.a:'';
+  if(bd)bd.textContent=hasDet?('· '+det.length+' registros · '+Object.keys(det.reduce(function(m,r){m[r.cedula||r.nombre]=1;return m;},{})).length+' trabajadores'):'';
+  var fhc=$d('file-hist-card');
+  if(fhc)fhc.style.display='block';
+}
+function _saveFileMeta(tipo,nombre){
+  var meta=null;
+  try{meta=JSON.parse(localStorage.getItem(FILE_META_KEY)||'{}');}catch(e){meta={};}
+  meta[tipo]=nombre;meta.ts=Date.now();
+  try{localStorage.setItem(FILE_META_KEY,JSON.stringify(meta));}catch(e){}
+  _updateFileBanner();
+}
+function _clearActiveFiles(){
+  if(!confirm('¿Limpiar archivos activos y datos cargados?\n\nEl historial guardado en Sheets NO se borrará.'))return;
+  det=[];dH=[];dA=[];overrides={};loaded={h:false,a:false};
+  try{localStorage.removeItem(FILE_META_KEY);}catch(e){}
+  try{localStorage.removeItem('cj_det_cache');}catch(e){}
+  _updateFileBanner();
+  var sl=$d('sl');if(sl)sl.innerHTML='';
+  var bp=$d('bp');if(bp){bp.disabled=true;bp.textContent='⚡ Generar roles consolidados';}
+  var okh=$d('okh'),oka=$d('oka');
+  if(okh)okh.textContent='';if(oka)oka.textContent='';
+  var zh=$d('zh'),za=$d('za');
+  if(zh)zh.classList.remove('uzok');if(za)za.classList.remove('uzok');
+  toast('✓ Archivos activos limpiados');
+  if(getAPI()&&getAPI().includes('script.google'))
+    fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'save_det_temp',registros:[]})}).catch(function(){});
+}
 function loadHist(){
   try{
     var data=JSON.parse(localStorage.getItem(HIST_KEY)||'[]');
@@ -2985,11 +3048,13 @@ function renderHist(){
         +'<button onclick="delCierre(\''+c.id+'\')" style="flex:1;padding:9px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--rs);color:var(--re);font-family:var(--fn);font-size:0.82rem;cursor:pointer">🗑 Eliminar</button>'
       +'</div>'
       // ── Worker Detail (hidden) ──
-      +'<div id="'+detailId+'" style="display:none;overflow-x:auto">'
-        +'<table class="hctable">'
+      +'<div id="'+detailId+'" style="display:none">'
+        +'<div class="hist-workers-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
+        +'<table class="hctable" style="min-width:560px">'
           +'<thead><tr style="font-size:0.65rem;text-transform:uppercase;color:var(--tx2);background:rgba(0,0,0,0.2)"><th style="padding:8px">Cédula</th><th style="padding:8px">Nombre / Banco · Cuenta</th><th style="padding:8px">Celular</th><th style="padding:8px">Días</th><th style="padding:8px">Hrs</th><th style="padding:8px">★Hrs</th><th style="padding:8px">Lbs</th><th style="padding:8px">★Prod</th><th style="padding:8px">Bruto</th><th style="padding:8px">Expreso</th><th style="padding:8px">Banco</th><th style="padding:8px;color:var(--pu)">Neto</th><th style="padding:8px">Estado</th><th style="padding:8px">PDF/WA</th></tr></thead>'
           +'<tbody>'+workerRows+'</tbody>'
         +'</table>'
+        +'</div>'
       +'</div>'
     +'</div>';
   }).filter(Boolean).join('');
