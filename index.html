@@ -1515,7 +1515,24 @@ function _doLogin(id, pw){
   // ── Auto-sincronizar historial desde Sheets al iniciar sesión ────────────
   setTimeout(function(){
     cargarDesdeSheets(true);
-    _startPolling(); // polling automático cada 30s
+    _startPolling();
+    // Restaurar datos de rol activo desde Sheets o localStorage
+    var cache=null;
+    try{var c=localStorage.getItem('cj_det_cache');if(c)cache=JSON.parse(c);}catch(e){}
+    if(cache&&cache.det&&cache.det.length&&Date.now()-cache.ts<86400000){
+      // Cache local reciente (<24h): restaurar inmediatamente
+      det=cache.det; loaded.h=true; loaded.a=true;
+      try{checkReady();}catch(e){}
+      toast('✓ Datos restaurados desde caché local: '+det.length+' registros');
+    } else {
+      // Intentar desde Sheets (para otros usuarios que no subieron los archivos)
+      _loadDetFromSheets(function(ok){
+        if(!ok && cache && cache.det && cache.det.length){
+          det=cache.det; loaded.h=true; loaded.a=true;
+          try{checkReady();}catch(e){}
+        }
+      });
+    }
   }, 1500);
   tarifasOk=true;
   renderTar();
@@ -1693,6 +1710,57 @@ function proc(){
   var sl=$d('sl');
   if(sl) sl.innerHTML='<span class="sgo">✓ '+workers+' trabajadores · '+det.length+' registros'+(feriadoCount?' · <span style="color:#c084fc">🎉 '+feriadoCount+' registros en feriado</span>':'')+'</span>';
   toast('✓ Roles: '+workers+' trabajadores · '+det.length+' registros'+(feriadoCount?' · '+feriadoCount+' feriados':''));
+
+  // ── Guardar det en localStorage Y Sheets para todos los usuarios ──────────
+  try{localStorage.setItem('cj_det_cache',JSON.stringify({ts:Date.now(),det:det}));}catch(e){}
+  _syncDetToSheets(); // silencioso, en background
+}
+
+/* Guarda el det actual en la hoja DET_TEMP de Sheets (compartido para todos) */
+function _syncDetToSheets(){
+  if(!getAPI()||!getAPI().includes('script.google')) return;
+  var payload=det.map(function(r){
+    return {cedula:r.cedula,nombre:r.nombre,tipo:r.tipo,fecha:r.fecha,
+      fechaSort:r.fechaSort,turno:r.turno,det2:r.det2,cant:r.cant,ud:r.ud,
+      tarBase:r.tarBase,tarTu:r.tarTu,valTu:r.valTu,valEmp:r.valEmp,
+      esHoliday:r.esHoliday?1:0,extraHora:r.extraHora||0,extraAvance:r.extraAvance||0,
+      horaIng:r.horaIng||'',horaSal:r.horaSal||'',sedeR:r.sedeR||'',
+      cliente:r.cliente||'',tipoProceso:r.tipoProceso||'',completo:r.completo||1};
+  });
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'save_det_temp',registros:payload})})
+    .then(function(r){return r.json();})
+    .then(function(r){if(r.ok) toast('☁ Datos compartidos con otros usuarios ('+payload.length+' registros)');})
+    .catch(function(){});
+}
+
+/* Carga DET_TEMP desde Sheets y restaura det (para otros usuarios) */
+function _loadDetFromSheets(cb){
+  if(!getAPI()||!getAPI().includes('script.google')){if(cb)cb(false);return;}
+  fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'load_det_temp'})})
+    .then(function(r){return r.json();})
+    .then(function(r){
+      if(r.ok && r.registros && r.registros.length){
+        det=r.registros.map(function(d){
+          return {cedula:d.cedula,nombre:d.nombre,tipo:d.tipo,fecha:d.fecha,
+            fechaSort:d.fechaSort,turno:d.turno,det2:d.det2,cant:Number(d.cant)||0,
+            ud:d.ud||'',tarBase:Number(d.tarBase)||0,tarTu:Number(d.tarTu)||0,
+            valTu:Number(d.valTu)||0,valEmp:Number(d.valEmp)||0,
+            esHoliday:Number(d.esHoliday)===1,extraHora:Number(d.extraHora)||0,
+            extraAvance:Number(d.extraAvance)||0,horaIng:d.horaIng||'',
+            horaSal:d.horaSal||'',sedeR:d.sedeR||'',cliente:d.cliente||'',
+            tipoProceso:d.tipoProceso||'',completo:Number(d.completo)||1};
+        });
+        loaded.h=true;loaded.a=true;
+        try{rPrev();}catch(e){}try{rD4();}catch(e){}try{rS5();}catch(e){}
+        checkReady();
+        var wk=Object.keys(det.reduce(function(m,r){m[r.cedula||r.nombre]=1;return m;},{})).length;
+        var sl=$d('sl');
+        if(sl) sl.innerHTML='<span class="sgo">✓ '+wk+' trabajadores · '+det.length+' registros (restaurado)</span>';
+        toast('✓ Datos restaurados: '+wk+' trabajadores · '+det.length+' registros');
+        if(cb)cb(true);
+      } else {if(cb)cb(false);}
+    })
+    .catch(function(){if(cb)cb(false);});
 }
 
 // ── bM: agrupa por trabajador ─────────────────────────────────────────────────
@@ -2587,14 +2655,25 @@ function guardarCierre(){
   }
   saveHistData(hist);
 
+  // ── Mostrar overlay de progreso mientras guarda en Sheets ─────────────────
+  var _ovr = document.createElement('div');
+  _ovr.id='save-overlay';
+  _ovr.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
+  _ovr.innerHTML='<div style="width:56px;height:56px;border:5px solid rgba(167,139,250,0.3);border-top-color:#a78bfa;border-radius:50%;animation:spin 0.8s linear infinite"></div>'
+    +'<div style="color:#e2e8f0;font-size:1.1rem;font-family:var(--fn);font-weight:600">💾 Guardando en Sheets...</div>'
+    +'<div style="color:#94a3b8;font-size:0.85rem">'+rolDetalle.length+' registros · '+rolPagos.length+' trabajadores</div>';
+  document.body.appendChild(_ovr);
+
   const btn=$d('bguardar');btn.disabled=true;btn.textContent='Guardando...';
   fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'guardar_rol',rol_pagos:rolPagos,rol_detalle:rolDetalle})})
     .then(r=>r.json()).then(function(r){
+      document.body.removeChild(_ovr);
       btn.textContent=r.ok?('✓ '+(eIdx>=0?'Actualizado':'Guardado')+' ('+r.saved+')'):'✓ Local';
-      toast(r.ok?('✓ '+r.saved+' en Sheets · Revisa Historial'):'Error en Sheets. Guardado local.');
+      toast(r.ok?('✓ '+r.saved+' trabajadores guardados en Sheets'):'Error en Sheets. Guardado local.');
       document.querySelectorAll('.tab')[5].click();
       renderHist();
     }).catch(function(){
+      if(document.getElementById('save-overlay')) document.body.removeChild(_ovr);
       btn.textContent='✓ Local';
       toast('Sin conexión. Guardado local.');
       document.querySelectorAll('.tab')[5].click();
