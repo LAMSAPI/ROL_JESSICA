@@ -395,15 +395,17 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
         <div class="csub">Tarifas y listado se cargan desde Google Sheet automáticamente.</div>
         <div id="api-st" class="ldg"><div class="spin"></div><span>Conectando con Google Sheet...</span></div>
 
-        <!-- Banner de archivos activos (persiste hasta que se limpie) -->
-        <div id="active-files-banner" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <span style="font-size:0.72rem;color:#4ade80;font-weight:700">✓ ARCHIVOS ACTIVOS</span>
+        <!-- Banner de archivos/caché activos (persiste hasta que se limpie) -->
+        <div id="active-files-banner" style="display:none;margin-bottom:12px;padding:10px 12px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1">
+            <span style="font-size:0.72rem;color:#4ade80;font-weight:700">✓ CACHÉ ACTIVA</span>
             <span id="banner-h" style="font-size:0.72rem;color:var(--tx2)"></span>
-            <span id="banner-a" style="font-size:0.72rem;color:var(--tx2)"></span>
-            <span id="banner-det" style="font-size:0.72rem;color:#c084fc;font-weight:600"></span>
           </div>
-          <button onclick="_clearActiveFiles()" style="font-size:0.68rem;color:var(--re);background:none;border:1px solid rgba(239,68,68,0.3);border-radius:5px;padding:3px 8px;cursor:pointer">🗑 Limpiar</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button id="btn-clear-h" onclick="_clearCacheType('h')" style="display:none;font-size:0.68rem;color:var(--am);background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:5px;padding:4px 8px;cursor:pointer">🗑 HORA</button>
+            <button id="btn-clear-a" onclick="_clearCacheType('a')" style="display:none;font-size:0.68rem;color:var(--am);background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:5px;padding:4px 8px;cursor:pointer">🗑 AVANCE</button>
+            <button onclick="_clearAllCache()" style="font-size:0.68rem;color:var(--re);background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:5px;padding:4px 8px;cursor:pointer">🗑 TODO</button>
+          </div>
         </div>
 
         <div class="ug">
@@ -854,6 +856,20 @@ window.addEventListener('DOMContentLoaded', function(){
   }
   renderFileHistory();
   _updateFileBanner(); // mostrar banner si hay archivos activos
+  
+  // ── Restaurar caché de datos al cargar ──────────────────────────────────
+  var cache=_getCacheData();
+  if(cache.h && cache.h.rows && cache.h.rows.length){
+    dH=cache.h.rows; loaded.h=true;
+    var okh=$d('okh');if(okh)okh.innerHTML='✓ '+cache.h.count+' reg <span style="font-size:0.65rem;color:var(--tx3)">(caché)</span>';
+    var zh=$d('zh');if(zh)zh.classList.add('ok');
+  }
+  if(cache.a && cache.a.rows && cache.a.rows.length){
+    dA=cache.a.rows; loaded.a=true;
+    var oka=$d('oka');if(oka)oka.innerHTML='✓ '+cache.a.count+' reg <span style="font-size:0.65rem;color:var(--tx3)">(caché)</span>';
+    var za=$d('za');if(za)za.classList.add('ok');
+  }
+  checkReady();
 });
 
 // ── Estado global ────────────────────────────────────────────────────────────
@@ -1533,19 +1549,24 @@ function _doLogin(id, pw){
   setTimeout(function(){
     cargarDesdeSheets(true);
     _startPolling();
-    // Restaurar datos de rol activo desde Sheets o localStorage
-    var cache=null;
-    try{var c=localStorage.getItem('cj_det_cache');if(c)cache=JSON.parse(c);}catch(e){}
-    if(cache&&cache.det&&cache.det.length&&Date.now()-cache.ts<86400000){
-      // Cache local reciente (<24h): restaurar inmediatamente
-      det=cache.det; loaded.h=true; loaded.a=true;
+    
+    // Restaurar datos de rol activo desde caché o Sheets
+    var detCache=null;
+    try{var c=localStorage.getItem('cj_det_cache');if(c){var parsed=JSON.parse(c);if(parsed.det&&parsed.det.length&&Date.now()-parsed.ts<604800000) detCache=parsed.det;}}catch(e){}
+    
+    if(detCache && detCache.length){
+      // Caché de det existe y es reciente (<7 días): restaurar
+      det=detCache; loaded.h=true; loaded.a=true;
       try{checkReady();}catch(e){}
-      toast('✓ Datos restaurados desde caché local: '+det.length+' registros');
+      var wk=Object.keys(det.reduce(function(m,r){m[r.cedula||r.nombre]=1;return m;},{})).length;
+      var sl=$d('sl');
+      if(sl) sl.innerHTML='<span class="sgo">✓ '+wk+' trabajadores · '+det.length+' registros <span style="font-size:0.65rem;color:var(--tx3)">(caché restaurada)</span></span>';
+      toast('✓ Caché restaurada: '+wk+' trabajadores · '+det.length+' registros');
     } else {
-      // Intentar desde Sheets (para otros usuarios que no subieron los archivos)
+      // Sin caché: intentar desde Sheets
       _loadDetFromSheets(function(ok){
-        if(!ok && cache && cache.det && cache.det.length){
-          det=cache.det; loaded.h=true; loaded.a=true;
+        if(!ok && detCache && detCache.length){
+          det=detCache; loaded.h=true; loaded.a=true;
           try{checkReady();}catch(e){}
         }
       });
@@ -1648,12 +1669,16 @@ function lf(input,tipo){
         for(let i=hr+1;i<raw.length;i++){const r=raw[i];if(!r||r.every(c=>c===null||c===''))continue;const obj={};headers.forEach((h,idx)=>{obj[h]=r[idx];});const nom=String(obj['NOMBRE']||'').trim();if(nom&&nom.toUpperCase()!=='NOMBRE')rows.push(obj);}
         if(tipo==='h'){dH=rows;loaded.h=true;const ok=$d('okh');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('zh').classList.add('ok');
           saveFileHistory('HORA', file.name, rows.length);
-          _saveFileMeta('h', file.name+' ('+rows.length+' reg)');
+          _saveCacheType('h', rows, file.name); // guardar en caché
+          var cacheA=_getCacheType('a'); // combinar con caché de AVANCE si existe
+          if(cacheA.length>0){dA=cacheA;loaded.a=true;var oka=$d('oka');oka.textContent='✓ '+cacheA.length+' reg (caché)';oka.style.display='block';$d('za').classList.add('ok');}
           // Auto-detectar cargo desde nombre de archivo si el campo está vacío o tiene valor default
           autoDetectCargo(file.name, raw, hr);}
         else{dA=rows;loaded.a=true;const ok=$d('oka');ok.textContent='✓ '+rows.length+' registros';ok.style.display='block';$d('za').classList.add('ok');
           saveFileHistory('AVANCE', file.name, rows.length);
-          _saveFileMeta('a', file.name+' ('+rows.length+' reg)');}
+          _saveCacheType('a', rows, file.name); // guardar en caché
+          var cacheH=_getCacheType('h'); // combinar con caché de HORA si existe
+          if(cacheH.length>0){dH=cacheH;loaded.h=true;var okh=$d('okh');okh.textContent='✓ '+cacheH.length+' reg (caché)';okh.style.display='block';$d('zh').classList.add('ok');}}
       }
     }catch(err){toast('Error leyendo archivo: '+err.message);}
     // FIX: checkReady siempre se ejecuta
@@ -1731,7 +1756,7 @@ function proc(){
   toast('✓ Roles: '+workers+' trabajadores · '+det.length+' registros'+(feriadoCount?' · '+feriadoCount+' feriados':''));
   _updateFileBanner(); // actualizar banner con conteo
 
-  // ── Guardar det en localStorage Y Sheets para todos los usuarios ──────────
+  // ── Guardar det en localStorage Y Sheets para recuperar después ──────────
   try{localStorage.setItem('cj_det_cache',JSON.stringify({ts:Date.now(),det:det}));}catch(e){}
   _syncDetToSheets(); // silencioso, en background
 }
@@ -2703,48 +2728,67 @@ function guardarCierre(){
 
 // ── Historial ─────────────────────────────────────────────────────────────────
 const HIST_KEY='cj_hist_v1';
-const FILE_HIST_KEY='cj_file_hist';
-const FILE_META_KEY='cj_file_meta';
+const CACHE_DATA_KEY='cj_cache_data_v2'; // {h:{rows,nombre,ts}, a:{rows,nombre,ts}}
 
-/* ── Archivos activos: banner persistente ────────────────────────────────── */
-function _updateFileBanner(){
-  var meta=null;
-  try{meta=JSON.parse(localStorage.getItem(FILE_META_KEY)||'null');}catch(e){}
-  var banner=$d('active-files-banner');
-  if(!banner)return;
-  var hasFiles=meta&&(meta.h||meta.a);
-  var hasDet=det&&det.length>0;
-  if(!hasFiles&&!hasDet){banner.style.display='none';return;}
-  banner.style.display='flex';
-  var bh=$d('banner-h'),ba=$d('banner-a'),bd=$d('banner-det');
-  if(bh)bh.textContent=meta&&meta.h?'⏱ '+meta.h:'';
-  if(ba)ba.textContent=meta&&meta.a?'📦 '+meta.a:'';
-  if(bd)bd.textContent=hasDet?('· '+det.length+' registros · '+Object.keys(det.reduce(function(m,r){m[r.cedula||r.nombre]=1;return m;},{})).length+' trabajadores'):'';
-  var fhc=$d('file-hist-card');
-  if(fhc)fhc.style.display='block';
+/* ── CACHÉ INTELIGENTE: HORA y AVANCE separados ──────────────────────────── */
+function _getCacheData(){
+  try{return JSON.parse(localStorage.getItem(CACHE_DATA_KEY)||'{}');}catch(e){return {};}
 }
-function _saveFileMeta(tipo,nombre){
-  var meta=null;
-  try{meta=JSON.parse(localStorage.getItem(FILE_META_KEY)||'{}');}catch(e){meta={};}
-  meta[tipo]=nombre;meta.ts=Date.now();
-  try{localStorage.setItem(FILE_META_KEY,JSON.stringify(meta));}catch(e){}
+function _saveCacheType(tipo,rows,nombre){
+  var cache=_getCacheData();
+  cache[tipo]={rows:rows,nombre:nombre,ts:Date.now(),count:rows.length};
+  try{localStorage.setItem(CACHE_DATA_KEY,JSON.stringify(cache));}catch(e){}
   _updateFileBanner();
 }
-function _clearActiveFiles(){
-  if(!confirm('¿Limpiar archivos activos y datos cargados?\n\nEl historial guardado en Sheets NO se borrará.'))return;
+function _getCacheType(tipo){
+  var cache=_getCacheData();
+  return(cache[tipo]&&cache[tipo].rows)||[];
+}
+function _clearCacheType(tipo){
+  var cache=_getCacheData();
+  delete cache[tipo];
+  try{localStorage.setItem(CACHE_DATA_KEY,JSON.stringify(cache));}catch(e){}
+  if(!cache.h&&!cache.a) try{localStorage.removeItem(CACHE_DATA_KEY);}catch(e){}
+  _updateFileBanner();
+}
+function _clearAllCache(){
+  if(!confirm('¿Limpiar TODA la caché (HORA y AVANCE)?\n\nEl historial en Sheets NO se borra.'))return;
   det=[];dH=[];dA=[];overrides={};loaded={h:false,a:false};
-  try{localStorage.removeItem(FILE_META_KEY);}catch(e){}
+  try{localStorage.removeItem(CACHE_DATA_KEY);}catch(e){}
   try{localStorage.removeItem('cj_det_cache');}catch(e){}
   _updateFileBanner();
   var sl=$d('sl');if(sl)sl.innerHTML='';
   var bp=$d('bp');if(bp){bp.disabled=true;bp.textContent='⚡ Generar roles consolidados';}
-  var okh=$d('okh'),oka=$d('oka');
-  if(okh)okh.textContent='';if(oka)oka.textContent='';
-  var zh=$d('zh'),za=$d('za');
-  if(zh)zh.classList.remove('uzok');if(za)za.classList.remove('uzok');
-  toast('✓ Archivos activos limpiados');
+  var okh=$d('okh'),oka=$d('oka');if(okh)okh.textContent='';if(oka)oka.textContent='';
+  var zh=$d('zh'),za=$d('za');if(zh)zh.classList.remove('ok');if(za)za.classList.remove('ok');
+  toast('✓ Caché limpiada completamente');
   if(getAPI()&&getAPI().includes('script.google'))
     fetch(getAPI(),{method:'POST',body:JSON.stringify({action:'save_det_temp',registros:[]})}).catch(function(){});
+}
+
+function _updateFileBanner(){
+  var cache=_getCacheData();
+  var banner=$d('active-files-banner');
+  if(!banner)return;
+  var hasH=cache.h&&cache.h.rows&&cache.h.rows.length>0;
+  var hasA=cache.a&&cache.a.rows&&cache.a.rows.length>0;
+  var hasDet=det&&det.length>0;
+  if(!hasH&&!hasA&&!hasDet){banner.style.display='none';return;}
+  
+  banner.style.display='flex';
+  var bh=$d('banner-h'),ba=$d('banner-a'),bd=$d('banner-det');
+  var detStr='';
+  if(hasH) detStr+='⏱ '+cache.h.nombre+' ('+cache.h.count+' reg) ';
+  if(hasA) detStr+='📦 '+cache.a.nombre+' ('+cache.a.count+' reg) ';
+  if(hasDet) detStr+='· '+det.length+' registros · '+Object.keys(det.reduce(function(m,r){m[r.cedula||r.nombre]=1;return m;},{})).length+' trabajadores';
+  if(bh)bh.innerHTML=detStr;
+  
+  // Mostrar botones de limpiar por tipo
+  var btnH=$d('btn-clear-h'),btnA=$d('btn-clear-a');
+  if(btnH)btnH.style.display=hasH?'inline-block':'none';
+  if(btnA)btnA.style.display=hasA?'inline-block':'none';
+  
+  var fhc=$d('file-hist-card');if(fhc)fhc.style.display='block';
 }
 function loadHist(){
   try{
